@@ -210,13 +210,17 @@ def web_search(query, max_results=3):
         return [f"(搜索暂时不可用: {e})"]
 
 def should_search(msg):
-    """判断是否需要联网搜索。"""
+    """判断是否需要联网搜索——更积极触发。"""
     triggers = [
         "今年", "最新", "2026", "2025", "最近", "现在",
-        "分数线", "录取分", "投档线", "招生计划",
+        "分数线", "录取分", "投档线", "招生计划", "录取",
         "政策", "变化", "改革", "新规",
         "就业率", "就业前景", "薪资", "月薪", "年薪",
-        "排名", "第几名", "怎么样",
+        "排名", "第几名", "怎么样", "好不好",
+        "能上", "能报", "能进", "稳不稳", "冲不冲",
+        "多少分", "什么专业", "一本", "二本", "985", "211",
+        "王牌专业", "优势", "缺点", "劣势", "值得", "推荐吗",
+    ]
     ]
     return any(t in msg for t in triggers)
 
@@ -289,13 +293,21 @@ class GaokaoAdvisor:
             hint = f"(系统自动识别到: {', '.join(updates)}。请在回复中确认并追问缺失信息。)"
             messages.append({"role": "system", "content": hint})
 
-        # 搜索（如有必要）
+        # 搜索（更积极）
         search_results = None
         if CONFIG["enable_search"] and should_search(user_msg):
-            search_query = f"{user_msg} 2026"
+            # 构建更精准的搜索词
+            search_query = user_msg[:100]  # 直接用用户问题搜
+            if "大学" in user_msg and ("怎么样" in user_msg or "好不好" in user_msg):
+                # 搜学校优势劣势
+                school = re.findall(r'[一-鿿]{2,6}大学', user_msg)
+                if school:
+                    search_query = f"{school[0]} 王牌专业 优势 劣势 就业 2025"
+            elif "分" in user_msg and ("能上" in user_msg or "能报" in user_msg):
+                search_query = f"{user_msg[:80]} 录取分数线 位次"
             search_results = web_search(search_query)
             if search_results:
-                search_hint = f"【搜索结果】\n" + "\n".join(
+                search_hint = f"【搜索结果 - {search_query}】\n" + "\n".join(
                     f"· {r}" for r in search_results[:3]
                 )
                 messages.append({"role": "system", "content": search_hint})
