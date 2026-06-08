@@ -60,7 +60,7 @@ def resolve_config():
             "base_url": os.getenv("LLM_BASE_URL", preset["base_url"]),
             "api_key": os.getenv("LLM_API_KEY", ""),
             "model": os.getenv("LLM_MODEL", preset["model"]),
-            "max_tokens": 8000,
+            "max_tokens": None,  # 不限制回复长度，让模型自由发挥
             "temperature": 0.7,
             "enable_search": True,
         }
@@ -68,7 +68,7 @@ def resolve_config():
         "base_url": os.getenv("LLM_BASE_URL", "https://api.deepseek.com"),
         "api_key": os.getenv("LLM_API_KEY", ""),
         "model": os.getenv("LLM_MODEL", "deepseek-chat"),
-        "max_tokens": 8000,
+        "max_tokens": None,  # 不限制回复长度，让模型自由发挥
         "temperature": 0.7,
         "enable_search": True,
     }
@@ -276,9 +276,9 @@ class GaokaoAdvisor:
 
     def _build_system_message(self):
         """构建系统消息，包含 system prompt + 知识库摘要 + 当前槽位状态。"""
-        # 知识库摘要：取前12000字，优先包含方法论部分
+        # 加载完整知识库，不做截断
         kb = self.knowledge_base if self.knowledge_base else ""
-        kb_summary = kb[:12000] if len(kb) > 12000 else kb
+        kb_summary = kb  # 全量加载，不限制
         slots_status = slots_summary()
         search_note = ""
         if CONFIG["enable_search"]:
@@ -344,12 +344,14 @@ class GaokaoAdvisor:
 
         # 调用 LLM
         try:
-            resp = self.client.chat.completions.create(
+            kwargs = dict(
                 model=CONFIG["model"],
                 messages=messages,
-                max_tokens=CONFIG["max_tokens"],
                 temperature=CONFIG["temperature"],
             )
+            if CONFIG["max_tokens"] is not None:
+                kwargs["max_tokens"] = CONFIG["max_tokens"]
+            resp = self.client.chat.completions.create(**kwargs)
             reply = resp.choices[0].message.content
         except Exception as e:
             reply = f"出错了：{e}\n请检查 API 配置（base_url, api_key, model 是否正确）。"
