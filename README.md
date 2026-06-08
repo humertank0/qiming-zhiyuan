@@ -7,7 +7,9 @@
 
 ---
 
-[▶ 观看演示视频](https://github.com/ziqihe10-droid/xuefeng-agent/blob/master/demo-video.mp4?raw=true)
+[![演示视频](demo-preview.gif)](https://github.com/ziqihe10-droid/xuefeng-agent/blob/master/demo-video.mp4?raw=true)
+
+> 👆 点击上图播放完整视频（25秒）
 
 ---
 
