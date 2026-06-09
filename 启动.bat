@@ -10,11 +10,6 @@ if not exist ".env" (
 )
 
 echo Starting...
-python agent.py 2>&1
-if %errorlevel% neq 0 (
-    echo.
-    echo If you see 'python' not found, install Python 3.10+ from python.org
-    echo Make sure to check "Add Python to PATH" during installation.
-)
+C:\Users\17625\AppData\Local\Programs\Python\Python312\python.exe agent.py 2>&1
 echo.
 pause
