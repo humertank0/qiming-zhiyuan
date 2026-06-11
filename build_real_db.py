@@ -39,16 +39,16 @@ def parse_any_excel(filepath):
         col_school = col_major = col_score = col_rank = col_quota = None
 
         for i, h in enumerate(headers):
-            hl = h.lower()
-            if any(kw in hl for kw in ['院校', '学校']):
+            hl = h.lower().replace('\n', '').replace('\r', '')  # 去掉换行符
+            if col_school is None and ('院校名称' in hl or '学校名称' in hl or ('院校' in hl and '代号' not in hl) or ('学校' in hl and '代号' not in hl)):
                 col_school = i
-            if any(kw in hl for kw in ['专业']):
+            if col_major is None and ('专业名称' in hl or ('专业' in hl and '代号' not in hl)):
                 col_major = i
-            if any(kw in hl for kw in ['位次', '名次', '排名']):
+            if col_rank is None and any(kw in hl for kw in ['最低位次', '位次', '名次', '排名']):
                 col_rank = i
-            if any(kw in hl for kw in ['分', '投档']):
+            if col_score is None and any(kw in hl for kw in ['投档最低分', '最低分', '投档分', '分数线']):
                 col_score = i
-            if any(kw in hl for kw in ['计划', '人数']):
+            if col_quota is None and any(kw in hl for kw in ['计划', '人数']):
                 col_quota = i
 
         if col_school is None:
@@ -132,20 +132,21 @@ def parse_xlsx(filepath):
         col_map = {}
         for i, h in enumerate(headers):
             i += 1
-            hl = h.lower()
-            if any(kw in hl for kw in ['院校', '学校', '大学']):
-                if 'school' not in col_map:
-                    col_map['school'] = i
-            if any(kw in hl for kw in ['专业', '名称']):
-                if 'major' not in col_map:
-                    col_map['major'] = i
-            if any(kw in hl for kw in ['分', '投档', '控制线']):
-                if 'score' not in col_map:
-                    col_map['score'] = i
-            if any(kw in hl for kw in ['位次', '名次', '排名']):
-                if 'rank' not in col_map:
-                    col_map['rank'] = i
-            if any(kw in hl for kw in ['计划', '人数']):
+            hl = h.lower().replace('\n', '').replace('\r', '')  # 去掉换行符
+            # 院校列：只取第一个，不覆盖
+            if col_map.get('school') is None and ('院校名称' in hl or '学校名称' in hl or ('院校' in hl and '代号' not in hl)):
+                col_map['school'] = i
+            # 专业列：优先名称
+            if col_map.get('major') is None and ('专业名称' in hl or ('专业' in hl and '代号' not in hl)):
+                col_map['major'] = i
+            # 分数列：优先匹配含"最低"的
+            if col_map.get('score') is None and any(kw in hl for kw in ['投档最低分', '最低分', '投档分', '分数线', '投档线']):
+                col_map['score'] = i
+            # 位次列
+            if col_map.get('rank') is None and any(kw in hl for kw in ['最低位次', '位次', '名次', '排名']):
+                col_map['rank'] = i
+            # 计划列
+            if col_map.get('quota') is None and any(kw in hl for kw in ['计划', '人数']):
                 col_map['quota'] = i
 
         if 'school' not in col_map:
