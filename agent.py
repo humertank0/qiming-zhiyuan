@@ -17,18 +17,6 @@ try:
 except ImportError:
     HAS_DATA_MODULE = False
 
-# 真实录取数据库
-try:
-    import sqlite3
-    REAL_DB_PATH = os.path.join(HERE, 'admission_data.db')
-    if os.path.exists(REAL_DB_PATH):
-        REAL_DB = sqlite3.connect(REAL_DB_PATH)
-        HAS_REAL_DATA = True
-    else:
-        HAS_REAL_DATA = False
-except:
-    HAS_REAL_DATA = False
-
 def query_real_data(province=None, school_keyword=None, major_keyword=None, max_rank=None, limit=20):
     """查询真实录取数据库 — 修复版"""
     if not HAS_REAL_DATA:
@@ -107,6 +95,18 @@ def load_dotenv(path):
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(HERE, ".env"))
+
+# 真实录取数据库（在 HERE 定义后初始化）
+HAS_REAL_DATA = False
+REAL_DB = None
+try:
+    import sqlite3 as _sql
+    _DB_PATH = os.path.join(HERE, 'admission_data.db')
+    if os.path.exists(_DB_PATH):
+        REAL_DB = _sql.connect(_DB_PATH)
+        HAS_REAL_DATA = True
+except Exception:
+    pass
 
 # ── 常见模型预设 ────────────────────────────────────
 # 用户只需设置 LLM_PROVIDER，系统自动填充 base_url 和 model
