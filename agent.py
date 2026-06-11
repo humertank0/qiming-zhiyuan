@@ -393,13 +393,21 @@ class GaokaoAdvisor:
         # 第一步：查真实数据库（优先级最高）
         search_results = None
         if HAS_REAL_DATA:
-            school_match = re.findall(r'[一-鿿]{2,6}(?:大学|学院)', user_msg)
+            school_match = re.findall(r'[一-鿿]{2,12}(?:大学|学院)', user_msg)
             prov_match = re.findall(r'(北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|广西|海南|四川|贵州|云南|陕西|甘肃|青海|西藏|宁夏|新疆|内蒙古)', user_msg)
             rank_match = re.search(r'(\d{4,7})\s*[位名]', user_msg)
 
             # 省份优先从槽位取
             prov = prov_match[0] if prov_match else SLOTS.get('province', {}).get('value', '')
-            school = school_match[0] if school_match else None
+            # 学校名：取最长匹配，清理前导动词
+            school = None
+            if school_match:
+                # 选最长的一个
+                school = max(school_match, key=len)
+                # 去掉前导的常见动词/介词
+                school = re.sub(r'^.{1,2}(?:想报|想去|想上|想学|报考|报|去|上|读)', '', school)
+                if len(school) < 4:
+                    school = school_match[0]  # 降级
             rank = int(rank_match.group(1)) if rank_match else None
 
             if prov or school:
@@ -428,7 +436,7 @@ class GaokaoAdvisor:
         # 第二步：网上搜索（仅在没有真实数据时）
         if not search_results and CONFIG["enable_search"] and should_search(user_msg):
             # 尝试用数据模块搜真实录取数据
-            school_match = re.findall(r'[一-鿿]{2,6}(?:大学|学院)', user_msg)
+            school_match = re.findall(r'[一-鿿]{2,12}(?:大学|学院)', user_msg)
             prov_match = re.findall(r'(北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|广西|海南|四川|贵州|云南|陕西|甘肃|青海|台湾|内蒙古|西藏|宁夏|新疆)', user_msg)
 
             if school_match and prov_match and HAS_DATA_MODULE:

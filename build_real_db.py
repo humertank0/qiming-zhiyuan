@@ -10,7 +10,6 @@ def parse_any_excel(filepath):
     """智能解析任意Excel文件，自动识别表头和数据行"""
     results = []
     try:
-        # 判断文件格式
         if filepath.endswith('.xls'):
             try:
                 wb = xlrd.open_workbook(filepath)
@@ -22,84 +21,86 @@ def parse_any_excel(filepath):
                         return str(int(v))
                     return str(v).strip() if v else ''
             except:
-                # 可能是.xlsx伪装成.xls
                 return parse_xlsx(filepath)
         else:
             return parse_xlsx(filepath)
 
-        # 自动找表头行（包含"院校"或"学校"或"投档"或"分数"的行）
+        # 找表头行：至少包含两个关键词才算表头（避免标题行冒充）
         header_row = 0
         for r in range(min(30, nrows)):
             row_text = ' '.join([get_val(r, c) for c in range(min(10, ncols))])
-            if any(kw in row_text for kw in ['院校', '学校', '投档', '分数', '位次', '计划']):
+            matched = [kw for kw in ['院校', '学校', '专业', '分数', '位次', '计划'] if kw in row_text]
+            if len(matched) >= 2:
                 header_row = r
                 break
 
-        # 自动定位列
+        # 定位列
         headers = [get_val(header_row, c) for c in range(min(10, ncols))]
-        col_map = {}
+        col_school = col_major = col_score = col_rank = col_quota = None
+
         for i, h in enumerate(headers):
             hl = h.lower()
-            if any(kw in hl for kw in ['院校', '学校', '大学']):
-                col_map['school'] = i
-            if any(kw in hl for kw in ['专业', '名称']):
-                if 'major' not in col_map:
-                    col_map['major'] = i
-            if any(kw in hl for kw in ['分', '投档']):
-                if 'score' not in col_map:
-                    col_map['score'] = i
+            if any(kw in hl for kw in ['院校', '学校']):
+                col_school = i
+            if any(kw in hl for kw in ['专业']):
+                col_major = i
             if any(kw in hl for kw in ['位次', '名次', '排名']):
-                col_map['rank'] = i
-            if any(kw in hl for kw in ['计划', '人数', '招生']):
-                col_map['quota'] = i
+                col_rank = i
+            if any(kw in hl for kw in ['分', '投档']):
+                col_score = i
+            if any(kw in hl for kw in ['计划', '人数']):
+                col_quota = i
 
-        # 如果没找到school列，尝试用第一列
-        if 'school' not in col_map:
-            col_map['school'] = 0
+        if col_school is None:
+            col_school = 0
 
-        # 遍历数据行
         for r in range(header_row + 1, nrows):
-            school = get_val(r, col_map.get('school', 0))
+            school_raw = get_val(r, col_school)
+            if not school_raw or len(school_raw) < 2:
+                continue
+            if any(kw in school_raw for kw in ['注', '说明', '合计', '共计']):
+                continue
+
+            # 清理学校名：去掉前导代码 "A001北京大学" → "北京大学"
+            # 匹配模式：字母+数字+空格开头
+            school = re.sub(r'^[A-Z]\d+\s*', '', school_raw).strip()
             if not school or len(school) < 2:
-                continue
-            # 跳过明显的非数据行
-            if school.startswith('注') or school.startswith('说明') or '合计' in school:
-                continue
+                school = school_raw.strip()
 
-            major = get_val(r, col_map['major']) if 'major' in col_map else ''
-            score_str = get_val(r, col_map['score']) if 'score' in col_map else ''
-            rank_str = get_val(r, col_map['rank']) if 'rank' in col_map else ''
-            quota_str = get_val(r, col_map['quota']) if 'quota' in col_map else ''
+            major = get_val(r, col_major) if col_major is not None else ''
+            # 去掉专业名前面的数字代号
+            major = re.sub(r'^[A-Za-z0-9]+\s*', '', major).strip()
 
-            # 清理数字
+            score_str = get_val(r, col_score) if col_score is not None else ''
+            rank_str = get_val(r, col_rank) if col_rank is not None else ''
+            quota_str = get_val(r, col_quota) if col_quota is not None else ''
+
+            # 处理特殊值
+            score = rank = quota = None
             try:
-                score = int(float(score_str)) if score_str else None
-            except:
-                score = None
+                if score_str and score_str.replace('.', '').replace('-', '').isdigit():
+                    score = int(float(score_str))
+            except: pass
             try:
-                rank = int(float(rank_str)) if rank_str else None
-            except:
-                rank = None
+                if rank_str and rank_str.replace('.', '').isdigit():
+                    rank = int(float(rank_str))
+            except: pass
             try:
-                quota = int(float(quota_str)) if quota_str else None
-            except:
-                quota = None
+                if quota_str and quota_str.replace('.', '').isdigit():
+                    quota = int(float(quota_str))
+            except: pass
 
-            # 清理学校名和专业名
-            school = re.sub(r'^\d+\s*', '', school)  # 去前导数字
-            school = re.sub(r'[（(][^)）]*[)）]$', '', school)  # 去末尾括号
-            major = re.sub(r'^\d+\s*', '', major)
-
-            if school and (score or rank):
+            if school and (score is not None or rank is not None):
                 results.append({
-                    'school': school.strip(),
-                    'major': major.strip() if major else '',
+                    'school': school,
+                    'major': major,
                     'score': score,
                     'rank': rank,
                     'quota': quota,
                 })
 
-        wb.release_resources() if hasattr(wb, 'release_resources') else None
+        if hasattr(wb, 'release_resources'):
+            wb.release_resources()
         return results
     except Exception as e:
         return []
@@ -229,12 +230,24 @@ def build_all(progress_callback=None):
             filepath = os.path.join(root, fname)
 
             # 推断省份和年份
-            province = os.path.basename(root)
-            year = 2024  # 默认2024
-            if '25年' in root or '2025' in fname:
+            province_raw = os.path.basename(root)
+            province = province_raw
+            # 省份名规范化
+            for p in ['北京','天津','上海','重庆','河北','山西','辽宁','吉林','黑龙江',
+                       '江苏','浙江','安徽','福建','江西','山东','河南','湖北','湖南',
+                       '广东','广西','海南','四川','贵州','云南','西藏','陕西','甘肃',
+                       '青海','宁夏','新疆','内蒙古']:
+                if p in province_raw:
+                    province = p
+                    break
+            # 年份检测
+            year = 2024
+            for y in ['2025','2024','2023','2022','2021','2020','2019','2018','2017']:
+                if y in fname or y in root:
+                    year = int(y)
+                    break
+            if year == 2024 and '25年' in root:
                 year = 2025
-            elif '26年' in root or '2026' in fname:
-                year = 2026
 
             # 只处理投档/录取/分数数据
             if not any(kw in fname for kw in ['投档', '录取', '分数线', '分数']):
