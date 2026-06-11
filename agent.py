@@ -461,7 +461,7 @@ class GaokaoAdvisor:
                     data_summary = '\n'.join(lines[:15])
                     if prov and prov not in str(data_prov):
                         data_summary += f'\n\n⚠ {prov}暂无该学校录取数据，以上为{data_prov}省数据，仅作参考。'
-                    messages.append({"role": "user", "content": f"【以下是真实数据，如果有跨省警告，回复时必须说明。】\n{data_summary}\n\n逐条报数字，不准编。"})
+                    messages.append({"role": "user", "content": f"【真实数据/跨省参考】\n{data_summary}\n\n如果显示跨省警告，必须首先告诉用户'该省暂无数据，以下为XX省参考'。如果完全没有数据，直接说'数据库暂无记录，建议查官网'，不准编造。"})
                     search_results = "real_data_used"
                     try:
                         print(f'\n  [数据] {lines[0]} ({len(lines)-1}条)')
@@ -493,6 +493,10 @@ class GaokaoAdvisor:
                         f"· {r}" for r in search_results[:3]
                     )
                     messages.append({"role": "system", "content": search_hint})
+
+        # 最终没数据时，明确禁止编造
+        if not search_results:
+            messages.append({"role": "system", "content": "【死命令】数据库和搜索均未找到该学校/专业在该省的录取数据。你必须明确告诉用户没有数据，建议查省考试院官网。禁止编造任何数字。"})
 
         # 调用 LLM
         try:
