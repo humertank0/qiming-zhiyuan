@@ -466,9 +466,9 @@ class GaokaoAdvisor:
         web_info = None
         if CONFIG["enable_search"] and should_search(user_msg):
             search_query = user_msg[:120]
-            # 搜两轮：精准+宽泛
-            web_results1 = web_search(search_query + " 录取 位次", max_results=5)
-            web_results2 = web_search(search_query + " 分数线", max_results=5) if "位次" not in search_query else []
+            # 搜两轮：权威来源+宽泛
+            web_results1 = web_search(search_query + " 录取 位次 site:gaokao.cn OR site:eol.cn", max_results=5)
+            web_results2 = web_search(search_query + " 分数线 教育考试院 OR 招生网", max_results=5)
             all_web = (web_results1 or []) + (web_results2 or [])
             # 去重
             seen = set()
