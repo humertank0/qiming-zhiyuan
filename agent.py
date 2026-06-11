@@ -421,11 +421,11 @@ class GaokaoAdvisor:
                     search_hint = '\n'.join(lines[:20])
                     if prov and prov not in str(data_prov):
                         search_hint += f'\n\n⚠ 注意：以上为{data_prov}省数据（{prov}暂无该学校数据），位次参考需根据各省差异调整。'
-                    search_hint += '\n\n⚠ 以上为2024年真实录取数据，请以位次为核心参考。'
+                    search_hint += '\n\n【铁律】上面是真实录取数据。你必须用它来回答，不准用自己脑子里的数字。数据里有什么就说什么，没有的就说没有。'
                     messages.append({"role": "system", "content": search_hint})
                     search_results = "real_data_used"
 
-        # 第二步：网上搜索（降级）
+        # 第二步：网上搜索（仅在没有真实数据时）
         if not search_results and CONFIG["enable_search"] and should_search(user_msg):
             # 尝试用数据模块搜真实录取数据
             school_match = re.findall(r'[一-鿿]{2,6}(?:大学|学院)', user_msg)
