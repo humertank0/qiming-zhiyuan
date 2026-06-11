@@ -229,15 +229,15 @@ def build_all(progress_callback=None):
 
             filepath = os.path.join(root, fname)
 
-            # 推断省份和年份
-            province_raw = os.path.basename(root)
-            province = province_raw
-            # 省份名规范化
-            for p in ['北京','天津','上海','重庆','河北','山西','辽宁','吉林','黑龙江',
-                       '江苏','浙江','安徽','福建','江西','山东','河南','湖北','湖南',
-                       '广东','广西','海南','四川','贵州','云南','西藏','陕西','甘肃',
-                       '青海','宁夏','新疆','内蒙古']:
-                if p in province_raw:
+            # 推断省份：搜全路径（含文件夹名和文件名）
+            province = '未知'
+            full_path_text = root + '/' + fname
+            PROV_LIST = ['北京','天津','上海','重庆','河北','山西','辽宁','吉林','黑龙江',
+                         '江苏','浙江','安徽','福建','江西','山东','河南','湖北','湖南',
+                         '广东','广西','海南','四川','贵州','云南','西藏','陕西','甘肃',
+                         '青海','宁夏','新疆','内蒙古']
+            for p in PROV_LIST:
+                if p in full_path_text:
                     province = p
                     break
             # 年份检测
@@ -249,9 +249,13 @@ def build_all(progress_callback=None):
             if year == 2024 and '25年' in root:
                 year = 2025
 
-            # 处理投档/录取/分数/一分一段/专业分数线等所有高考数据
-            if not any(kw in fname for kw in ['投档', '录取', '分数线', '分数', '一分一段', '分段表', '专业分数线', '招生计划']):
-                continue
+            # 处理投档/录取/分数/一分一段等所有高考数据（同时检查文件名和路径）
+            full_text = fname + root
+            if not any(kw in full_text for kw in ['投档', '录取', '分数线', '分数', '一分一段', '分段表', '招生计划', '高考']):
+                # 但文件名是纯年份（如2023.xlsx）且路径含省份名→一分一段表，放行
+                is_year_file = re.match(r'^\d{4}\.xls', fname)
+                if not is_year_file:
+                    continue
 
             results = parse_any_excel(filepath)
             for r in results:
