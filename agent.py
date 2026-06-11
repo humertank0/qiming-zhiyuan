@@ -381,7 +381,7 @@ class GaokaoAdvisor:
         system_msg = self._build_system_message()
         messages = [{"role": "system", "content": system_msg}]
         # 添加历史（最近10轮=20条消息）
-        for h in self.conversation[-20:]:
+        for h in self.conversation:  # 不限制轮数，保留全部对话
             messages.append(h)
         messages.append({"role": "user", "content": user_msg})
 
@@ -455,9 +455,13 @@ class GaokaoAdvisor:
                     search_hint = '\n'.join(lines[:20])
                     if prov and prov not in str(data_prov):
                         search_hint += f'\n\n⚠ 注意：以上为{data_prov}省数据（{prov}暂无该学校数据），位次参考需根据各省差异调整。'
-                    search_hint += '\n\n【铁律·死命令】你脑子里的任何数字都不可靠。上面这些才是真实的录取数据。你的任务是把这些数据用大白话告诉用户。不准编造任何不在上面的数字。不准说\"大概XX万\"。数据里的位次是多少就说多少。如果数据和你记忆冲突，以这里的数据为准。'
+                                        search_hint += '\n\n【死命令】你是分析师不是数据源。逐条报上面数字，不准编。不准说大概。没有就说没有。'
                     messages.append({"role": "system", "content": search_hint})
                     search_results = "real_data_used"
+                    # 也打印到终端让用户直接看到数据
+                    try:
+                        print(f'\n  [数据] {lines[0]} ({len(lines)-1}条)')
+                    except: pass
 
         # 第二步：网上搜索（仅在没有真实数据时）
         if not search_results and CONFIG["enable_search"] and should_search(user_msg):
