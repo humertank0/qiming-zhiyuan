@@ -467,32 +467,17 @@ class GaokaoAdvisor:
                         print(f'\n  [数据] {lines[0]} ({len(lines)-1}条)')
                     except: pass
 
-        # 第二步：网上搜索（仅在没有真实数据时）
-        if not search_results and CONFIG["enable_search"] and should_search(user_msg):
-            # 尝试用数据模块搜真实录取数据
-            school_match = re.findall(r'[一-鿿]{2,8}(?:大学|学院)', user_msg)
-            prov_match = re.findall(r'(北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|广西|海南|四川|贵州|云南|陕西|甘肃|青海|台湾|内蒙古|西藏|宁夏|新疆)', user_msg)
-
-            if school_match and prov_match and HAS_DATA_MODULE:
-                try:
-                    raw = query_admission(school_match[0], prov_match[0])
-                    admission_text = format_admission_info(raw)
-                    if admission_text and "暂无" not in admission_text:
-                        search_hint = f"【真实录取数据搜索】\n{admission_text}"
-                        messages.append({"role": "system", "content": search_hint})
-                        search_results = "data_module_used"
-                except:
-                    pass
-
-            # 降级：用普通搜索
-            if not search_results:
-                search_query = user_msg[:100]
-                search_results = web_search(search_query)
-                if search_results:
-                    search_hint = f"【搜索结果】\n" + "\n".join(
-                        f"· {r}" for r in search_results[:3]
-                    )
-                    messages.append({"role": "system", "content": search_hint})
+        # 第二步：网上搜索（有数据也搜补充，没数据全靠搜）
+        web_info = None
+        if CONFIG["enable_search"] and should_search(user_msg):
+            search_query = user_msg[:120]
+            web_results = web_search(search_query)
+            if web_results:
+                web_info = "\n".join(f"· {r[:200]}" for r in web_results[:5] if len(r) > 20)
+                if web_info:
+                    messages.append({"role": "system", "content": f"【网上搜索到的信息】\n{web_info}\n\n你是分析师。根据这些网上信息和你的知识，给出分析。必须明确标注'根据网上公开信息'。不准把网上的模糊信息说成确定数字。"})
+                    if not search_results:
+                        search_results = "web_only"
 
         # 最终没数据时，明确禁止编造
         if not search_results:
@@ -515,10 +500,16 @@ class GaokaoAdvisor:
         # 清理格式
         reply = cleanup_format(reply)
 
-        # 如果有真实数据，直接插入回复开头——LLM 不可靠，数据先行
+        # 数据先行注入回复
         if search_results == "real_data_used":
             search_hint_clean = re.sub(r'【[^】]+】', '', search_hint)[:800]
             reply = f"[真实录取数据]\n{search_hint_clean}\n\n[AI分析]\n{reply}"
+        elif search_results == "web_only":
+            web_clean = (web_info or '')[:600]
+            if web_clean:
+                reply = f"[网上公开信息·仅供参考]\n{web_clean}\n\n[AI分析]\n{reply}"
+            web_clean = web_info[:600]
+            reply = f"[网上公开信息·仅供参考]\n{web_clean}\n\n[AI分析]\n{reply}"
 
         # 保存对话历史
         self.conversation.append({"role": "user", "content": user_msg})
