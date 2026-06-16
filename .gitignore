@@ -23,3 +23,8 @@ Thumbs.db
 admission_data.db
 *.db
 build_log.txt
+.trellis/
+AGENTS.md
+.cursor
+.devin
+
