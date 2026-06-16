@@ -4,7 +4,7 @@
 import os, re, sqlite3, xlrd, openpyxl, time
 
 DATA_DIR = r'E:\桌面\高考志愿填报'
-DB_PATH = r'E:\桌面\张雪峰agent\all_provinces.db'
+DB_PATH = r'E:\桌面\启明志愿\all_provinces.db'
 
 # 省份关键词（按优先级，长的在前避免误匹配）
 PROVINCES = ['黑龙江','内蒙古','北京','天津','上海','重庆','河北','山西','辽宁','吉林',

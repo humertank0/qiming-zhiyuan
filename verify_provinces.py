@@ -3,7 +3,7 @@
 import sqlite3, random, sys
 sys.stdout.reconfigure(encoding='utf-8')
 
-DB_PATH = r'E:\桌面\张雪峰agent\all_provinces.db'
+DB_PATH = r'E:\桌面\启明志愿\all_provinces.db'
 conn = sqlite3.connect(DB_PATH)
 
 PROVINCES = ['河南','河北','山东','贵州','浙江','安徽','广西','山西','江西','广东',

@@ -42,8 +42,8 @@ python --version
 ### 方式B：git clone
 
 ```bash
-git clone https://github.com/你的用户名/xuefeng-agent.git
-cd xuefeng-agent
+git clone https://github.com/你的用户名/qiming-zhiyuan.git
+cd qiming-zhiyuan
 ```
 
 ---
@@ -66,7 +66,7 @@ pip install openai pywin32
 
 ## 第四步：获取 API Key
 
-Agent 需要一个 AI 模型来运行。推荐用 DeepSeek（便宜、效果好）。
+启明志愿需要一个 AI 模型来运行。推荐用 DeepSeek（便宜、效果好）。
 
 ### 获取 DeepSeek API Key（推荐）
 
@@ -146,7 +146,7 @@ python agent.py
 湖北物理类580分，位次28000，普通家庭，想去武汉学计算机
 ```
 
-Agent 会先确认你的信息，然后给出冲稳保推荐。
+启明志愿会先确认你的信息，然后给出冲稳保推荐。
 
 ### 粘贴长文本
 
@@ -192,9 +192,9 @@ LLM_MODEL=qwen2.5:7b
 
 完全免费、完全离线。
 
-### Q: Agent 的回复靠谱吗？
+### Q: 启明志愿的回复靠谱吗？
 
-Agent 基于大量公开数据整理的知识库给出建议，但它是 AI，**可能出错**。录取分数线每年都在变，请务必到目标学校官网和各省教育考试院官网核实。
+启明志愿基于大量公开数据整理的知识库给出建议，但它是 AI，**可能出错**。录取分数线每年都在变，请务必到目标学校官网和各省教育考试院官网核实。
 
 ### Q: 会不会泄露我的个人信息？
 

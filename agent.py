@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-高考志愿顾问 Agent — 模型无关、支持实时搜索、结构化槽位采集。
+启明志愿 — AI 高考志愿顾问，模型无关、支持实时搜索、结构化槽位采集。
 Usage:
   python agent.py                    # 交互式对话
   python agent.py --model qwen-plus # 指定模型
@@ -555,7 +555,7 @@ def main():
     import textwrap
 
     print("=" * 60)
-    print("  高考志愿顾问 Agent")
+    print("  启明志愿 · AI 高考志愿顾问")
     print(f"  模型: {CONFIG['model']}")
     print(f"  搜索: {'开' if CONFIG['enable_search'] else '关'}")
     print("=" * 60)

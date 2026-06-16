@@ -2,8 +2,8 @@
 """清洗录取数据库——去脏数据，保留真实记录"""
 import sqlite3, sys; sys.stdout.reconfigure(encoding='utf-8')
 
-SRC = r'E:\桌面\张雪峰agent\all_provinces.db'
-DST = r'E:\桌面\张雪峰agent\admission_clean.db'
+SRC = r'E:\桌面\启明志愿\all_provinces.db'
+DST = r'E:\桌面\启明志愿\admission_clean.db'
 PROVINCE_NAMES = ['北京','天津','上海','重庆','河北','山西','辽宁','吉林','黑龙江','江苏','浙江','安徽','福建','江西','山东','河南','湖北','湖南','广东','广西','海南','四川','贵州','云南','西藏','陕西','甘肃','青海','宁夏','新疆','内蒙古']
 
 src = sqlite3.connect(SRC)

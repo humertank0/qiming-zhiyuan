@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build 志愿先驱Agent promo video HTML animation."""
+"""Build 启明志愿 promo video HTML animation."""
 
 import base64, os
 
@@ -24,11 +24,11 @@ anim_path = r'C:/Users/17625/.claude/skills/huashu-design/assets/animations.jsx'
 with open(anim_path, 'r', encoding='utf-8') as f:
     anim_js = f.read()
 
-OUT_DIR = r'E:\桌面\张雪峰agent\zhiyuan-video'
+OUT_DIR = r'E:\桌面\启明志愿\zhiyuan-video'
 os.makedirs(OUT_DIR, exist_ok=True)
 
 html = f'''<!DOCTYPE html><html lang="zh-CN">
-<head><meta charset="UTF-8"><title>志愿先驱Agent</title>
+<head><meta charset="UTF-8"><title>启明志愿</title>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -55,7 +55,7 @@ function Banned() {{
   return(<div style={{{{position:'relative',width:'100%',height:'100%',background:'#000',display:'flex',alignItems:'center',justifyContent:'center'}}}}>
     <img src="{IMG1}" style={{{{position:'absolute',width:'110%',height:'110%',objectFit:'cover',transform:`translate(${{shake}}px,${{shake*0.5}}px)`,filter:'brightness(0.5)'}}}}/>
     <div style={{{{color:'#ff3b30',fontSize:80,fontWeight:900,opacity:op,textShadow:'0 0 40px rgba(255,59,48,0.6)',textAlign:'center',zIndex:10}}}}>
-      上一个五百万播放<br/>填报志愿视频被封了
+      高考志愿<br/>真正难的是信息差
     </div>
   </div>);
 }}
@@ -66,7 +66,7 @@ function StillHere() {{
   const op=interpolate(t,[0,0.3,1],[0,1,1],Easing.easeOut);
   return(<div style={{{{background:'linear-gradient(135deg,#1a1a2e,#16213e)',width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}}}>
     <div style={{{{color:'#fff',fontSize:90,fontWeight:900,opacity:op,textAlign:'center'}}}}>
-      但没关系<br/><span style={{{{color:'#4cd964'}}}}>志愿先驱agent</span>还在
+      但没关系<br/><span style={{{{color:'#4cd964'}}}}>启明志愿</span>还在
     </div>
   </div>);
 }}
@@ -75,10 +75,10 @@ function StillHere() {{
 function Numbers() {{
   const{{t}}=useSprite();
   const items=[
-    {{num:'8',label:'本专著',sub:'志愿填报精华'}},
+    {{num:'8',label:'本专著',sub:'系统方法论'}},
     {{num:'61',label:'节视频课',sub:'1500+分钟讲解'}},
-    {{num:'1932',label:'页资料',sub:'全部学进脑子'}},
-    {{num:'792',label:'个本科专业',sub:'挨个分析就业出路'}},
+    {{num:'1932',label:'页资料',sub:'整理成可用知识'}},
+    {{num:'792',label:'个本科专业',sub:'梳理就业方向'}},
   ];
   const idx=Math.min(Math.floor(t*items.length),items.length-1);
   const localT=(t*items.length)%1;
@@ -86,7 +86,7 @@ function Numbers() {{
   const sc=interpolate(Math.min(localT,0.3)/0.3,[0,0.3,1],[0.7,1.12,1],Easing.easeOut);
   const op=idx<items.length-1||localT<0.7?1:interpolate(localT,[0.7,1],[1,0],Easing.easeOut);
   return(<div style={{{{background:'#0a0a0a',width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}}}>
-    <div style={{{{color:'#999',fontSize:28,marginBottom:20,letterSpacing:3}}}}>它蒸馏了八本志愿填报专著</div>
+    <div style={{{{color:'#999',fontSize:28,marginBottom:20,letterSpacing:3}}}}>系统整理志愿填报资料</div>
     <div style={{{{color:'#ff3b30',fontSize:200,fontWeight:900,opacity:op,transform:`scale(${{sc}})`,textShadow:'0 0 50px rgba(255,59,48,0.4)'}}}}>{{it.num}}</div>
     <div style={{{{color:'#fff',fontSize:52,fontWeight:700,marginTop:10}}}}>{{it.label}}</div>
     <div style={{{{color:'#aaa',fontSize:26,marginTop:8}}}}>{{it.sub}}</div>
@@ -100,9 +100,9 @@ function ChatDemo() {{
   return(<div style={{{{background:'#111',width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}}}>
     <div style={{{{opacity:op,width:'75%',background:'#1a1a1a',borderRadius:20,padding:45,boxShadow:'0 30px 80px rgba(0,0,0,0.6)'}}}}>
       <div style={{{{color:'#4cd964',fontSize:28,marginBottom:15}}}}>👤 湖北580分，位次28000...</div>
-      <div style={{{{color:'#fff',fontSize:26,lineHeight:1.7}}}}>先追着你问清楚：你家做什么的？<br/>想去哪？讨厌学什么？<br/>问清楚了再给你方案。</div>
+      <div style={{{{color:'#fff',fontSize:26,lineHeight:1.7}}}}>先问清楚：省份、位次、选科、目标。<br/>再结合家庭情况和地域偏好，<br/>给出更贴近现实的建议。</div>
     </div>
-    <div style={{{{color:'#fff',fontSize:36,fontWeight:700,marginTop:25,opacity:op}}}}>问清楚底细，再给方案</div>
+    <div style={{{{color:'#fff',fontSize:36,fontWeight:700,marginTop:25,opacity:op}}}}>先问清楚，再给建议</div>
   </div>);
 }}
 
@@ -116,18 +116,18 @@ function ChongWenBao() {{
       <div style={{{{background:'linear-gradient(180deg,#ff9500,#cc7a00)',borderRadius:18,padding:'25px 45px',textAlign:'center'}}}}><div style={{{{color:'#fff',fontSize:18,opacity:0.7}}}}>稳</div><div style={{{{color:'#fff',fontSize:24,fontWeight:700,marginTop:8}}}}>湖北大学</div></div>
       <div style={{{{background:'linear-gradient(180deg,#4cd964,#34a853)',borderRadius:18,padding:'25px 45px',textAlign:'center'}}}}><div style={{{{color:'#fff',fontSize:18,opacity:0.7}}}}>保</div><div style={{{{color:'#fff',fontSize:24,fontWeight:700,marginTop:8}}}}>三峡大学</div></div>
     </div>
-    <div style={{{{color:'#fff',fontSize:42,fontWeight:900,marginTop:35,opacity:op}}}}>冲稳保三档，一口气全给你</div>
+    <div style={{{{color:'#fff',fontSize:42,fontWeight:900,marginTop:35,opacity:op}}}}>冲稳保方向，讲清依据</div>
   </div>);
 }}
 
-// 14-16s: 别碰
-function DontTouch() {{
+// 14-16s: 风险提醒
+function RiskNote() {{
   const{{t}}=useSprite();
   const sc=interpolate(t,[0,0.08,0.3,1],[0.3,1.3,1,1],Easing.easeOut);
   const op=interpolate(t,[0,0.08],[0,1],Easing.easeOut);
   return(<div style={{{{background:'#000',width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}}}>
-    <div style={{{{color:'#ff3b30',fontSize:200,fontWeight:900,opacity:op,transform:`scale(${{sc}})`,textShadow:'0 0 100px rgba(255,59,48,0.5)'}}}}>别碰</div>
-    <div style={{{{color:'#fff',fontSize:34,marginTop:15,opacity:op}}}}>不适合你的专业，它真敢说别碰</div>
+    <div style={{{{color:'#ff3b30',fontSize:200,fontWeight:900,opacity:op,transform:`scale(${{sc}})`,textShadow:'0 0 100px rgba(255,59,48,0.5)'}}}}>慎重</div>
+    <div style={{{{color:'#fff',fontSize:34,marginTop:15,opacity:op}}}}>不适合的方向，会把风险讲清楚</div>
   </div>);
 }}
 
@@ -137,7 +137,7 @@ function FreeOpen() {{
   const op=interpolate(t,[0,0.15,0.85,1],[0,1,1,0],Easing.easeOut);
   return(<div style={{{{background:'linear-gradient(180deg,#0a0a0a,#1a1a2e)',width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}}}>
     <img src="{IMG4}" style={{{{maxWidth:'80%',maxHeight:'65%',objectFit:'contain',opacity:op,borderRadius:12,boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}}}/>
-    <div style={{{{color:'#4cd964',fontSize:52,fontWeight:900,marginTop:20,opacity:op}}}}>免费 · 开源 · 需要教程关注私信我</div>
+    <div style={{{{color:'#4cd964',fontSize:52,fontWeight:900,marginTop:20,opacity:op}}}}>免费 · 开源 · 普通家庭也能用</div>
   </div>);
 }}
 
@@ -147,7 +147,7 @@ function Ending() {{
   const op=interpolate(t,[0,0.3,1],[0,1,1],Easing.easeOut);
   return(<div style={{{{background:'#000',width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}}}>
     <div style={{{{color:'#fff',fontSize:70,fontWeight:900,opacity:op,textAlign:'center',letterSpacing:6}}}}>
-      希望各位高考毕业生<br/><span style={{{{color:'#4cd964'}}}}>成功上岸</span>
+      希望每个普通家庭<br/><span style={{{{color:'#4cd964'}}}}>少走一点弯路</span>
     </div>
   </div>);
 }}
@@ -159,7 +159,7 @@ function Main() {{
     <Sprite start={{4}} end={{8}}><Numbers/></Sprite>
     <Sprite start={{8}} end={{11}}><ChatDemo/></Sprite>
     <Sprite start={{11}} end={{14}}><ChongWenBao/></Sprite>
-    <Sprite start={{14}} end={{16}}><DontTouch/></Sprite>
+    <Sprite start={{14}} end={{16}}><RiskNote/></Sprite>
     <Sprite start={{16}} end={{18}}><FreeOpen/></Sprite>
     <Sprite start={{18}} end={{20}}><Ending/></Sprite>
   </Stage>);
