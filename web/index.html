@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>启明志愿</title>
+  <link rel="stylesheet" href="/web/styles.css?v=20260617-example-modal-fix" />
+</head>
+<body>
+  <main class="page-shell">
+    <section class="hero-panel">
+      <div class="hero-copy-block">
+        <div class="brand-mark">
+          <div class="logo">启</div>
+          <span>启明志愿</span>
+        </div>
+        <h1>把高考志愿里的信息差，讲清楚一点。</h1>
+        <p class="lead">
+          不只看分数，也会把省份、位次、选科、专业、城市、家庭情况和就业目标放在一起看。我们不替你拍板，只帮你看清机会、风险和需要核实的数据。
+        </p>
+        <div class="hero-actions">
+          <a href="#cases" class="primary-link">先看示例</a>
+          <a href="#chat" class="ghost-link">直接咨询</a>
+        </div>
+        <div class="trust-row">
+          <span>29省录取数据</span>
+          <span>专业就业方向</span>
+          <span>冲稳保参考</span>
+        </div>
+      </div>
+
+      <div class="phone-preview" aria-label="对话预览">
+        <div class="phone-topbar">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="preview-chat">
+          <div class="preview-user">湖北物理类580分，位次28000，普通家庭，想去武汉学计算机。</div>
+          <div class="preview-assistant">
+            这个分数段有选择空间，但别只盯“计算机”三个字。先看位次，再看专业组和城市机会。
+            <br><br>
+            冲可以看武汉理工相关专业组；稳一点重点看湖北大学、武汉科技大；保底要留够安全垫。计算机能选，但大学期间要往 AI、数据、工程能力上走，别只停留在课内基础。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="control-panel" aria-label="模型调用方式">
+      <div class="panel-heading">
+        <div>
+          <h2>选择模型调用方式</h2>
+          <p>想省事就用项目方后端；想节省项目方额度，也可以用自己的 Key。</p>
+        </div>
+      </div>
+
+      <div class="mode-tabs">
+        <label class="mode-option active" id="backendModeLabel">
+          <input type="radio" name="mode" value="backend" checked />
+          <span>项目方后端</span>
+          <small>无需填写 Key，适合快速体验</small>
+        </label>
+        <label class="mode-option" id="byokModeLabel">
+          <input type="radio" name="mode" value="byok" />
+          <span>我自己的 Key</span>
+          <small>Key 不发到启明志愿后端</small>
+        </label>
+      </div>
+
+      <div class="byok-settings hidden" id="byokSettings">
+        <div class="settings-grid">
+          <label>
+            <span>提供商</span>
+            <select id="providerSelect"></select>
+          </label>
+          <label>
+            <span>模型名</span>
+            <input id="modelInput" autocomplete="off" placeholder="deepseek-chat" />
+          </label>
+          <label class="wide-field">
+            <span>Base URL</span>
+            <input id="baseUrlInput" autocomplete="off" placeholder="https://api.example.com/v1" />
+          </label>
+          <label class="wide-field">
+            <span>API Key</span>
+            <input id="apiKeyInput" type="password" autocomplete="off" placeholder="默认只保存在当前浏览器会话里" />
+          </label>
+        </div>
+        <label class="remember-row">
+          <input id="rememberKeyInput" type="checkbox" />
+          <span>记住在本设备上（共享电脑不建议）</span>
+        </label>
+        <div class="settings-actions">
+          <button type="button" id="testKeyButton" class="secondary-btn">测试连接</button>
+          <span id="testResult" class="test-result"></span>
+        </div>
+        <p class="security-note">
+          自带 Key 模式下，请求会从你的浏览器直接发往所选服务商。启明志愿后端不保存、不接触你的 Key；但浏览器扩展、共享电脑、XSS 或服务商 CORS 策略仍可能带来风险。
+        </p>
+      </div>
+    </section>
+
+    <section class="cases-section" id="cases">
+      <div class="panel-heading">
+        <div>
+          <h2>几个典型情况，先感受一下</h2>
+          <p>先看看别人是怎么问、怎么回答的。示例会在独立弹窗里展示，不消耗 API 额度。</p>
+        </div>
+      </div>
+
+      <div class="case-grid" id="quickPrompts">
+        <article class="case-card blue">
+          <div class="case-kicker">普通家庭 · 理工方向</div>
+          <h3>580 分想去武汉学计算机</h3>
+          <p>不只问“能不能上”，还会看位次、专业组、城市机会和普通家庭的就业路径。</p>
+          <ul>
+            <li>冲：看 211 或强工科专业组</li>
+            <li>稳：本地认可度和专业匹配</li>
+            <li>提醒：计算机要往 AI/数据/工程能力走</li>
+          </ul>
+          <button type="button" data-example-key="hubeiComputer" data-prompt="湖北物理类580分，位次28000，普通家庭，想去武汉学计算机">查看示例</button>
+        </article>
+
+        <article class="case-card green">
+          <div class="case-kicker">文科 · 考公方向</div>
+          <h3>河南文科 510，想考公务员</h3>
+          <p>会先看专业是否适合考公，再看学校、城市和备考便利度。</p>
+          <ul>
+            <li>重点看汉语言、法学、财会等方向</li>
+            <li>英语等岗位较少的方向会提醒慎重</li>
+            <li>建议尽早准备行测申论</li>
+          </ul>
+          <button type="button" data-example-key="henanCivilService" data-prompt="河南文科510分，家在县城，想考公务员，能去哪个学校？">查看示例</button>
+        </article>
+
+        <article class="case-card amber">
+          <div class="case-kicker">家庭资源 · 电网</div>
+          <h3>家里有电力系统资源，怎么选？</h3>
+          <p>不会只看热门专业，会把家庭资源、专业对口和招聘路径放在一起判断。</p>
+          <ul>
+            <li>重点看电气工程及相关院校</li>
+            <li>提醒资源不能替代考试和能力</li>
+            <li>同时比较计算机和电气的取舍</li>
+          </ul>
+          <button type="button" data-example-key="powerGrid" data-prompt="河北物理600分，家里亲戚在电力系统，想进国家电网，怎么选学校？">查看示例</button>
+        </article>
+
+        <article class="case-card rose">
+          <div class="case-kicker">热门专业 · 风险提醒</div>
+          <h3>普通家庭想学金融，合不合适？</h3>
+          <p>热门不等于适合。会看学校层次、家庭资源、城市机会和就业落差。</p>
+          <ul>
+            <li>金融对学校和资源要求较高</li>
+            <li>普通双非要特别看就业去向</li>
+            <li>会给出计算机、电气等替代方向</li>
+          </ul>
+          <button type="button" data-example-key="financeWarning" data-prompt="河南560分，普通家庭，没有金融行业资源，想学金融，怎么样？">查看示例</button>
+        </article>
+
+        <article class="case-card purple">
+          <div class="case-kicker">低分段 · 专科也要选对</div>
+          <h3>只能上专科，还有没有出路？</h3>
+          <p>专科重点看技能壁垒、行业资源、地区政策和专升本可能性。</p>
+          <ul>
+            <li>关注电力、铁路、医护等方向</li>
+            <li>避开名字好听但壁垒弱的专业</li>
+            <li>提前考虑专升本和就业城市</li>
+          </ul>
+          <button type="button" data-example-key="juniorCollege" data-prompt="我只考了380分，只能上专科了，家里普通，想毕业有个稳定工作，帮我看看学什么好？">查看示例</button>
+        </article>
+
+        <article class="case-card cyan">
+          <div class="case-kicker">高一 · 新高考选科</div>
+          <h3>以后想学医，选科怎么选？</h3>
+          <p>不只给组合，还会说明覆盖范围、学习压力和未来职业周期。</p>
+          <ul>
+            <li>临床医学优先看物化生等组合</li>
+            <li>提醒医学周期长、强度高</li>
+            <li>结合成绩和家庭承受能力判断</li>
+          </ul>
+          <button type="button" data-example-key="subjectMedicine" data-prompt="我现在高一，马上要选科了，以后想学医，各科成绩还行，该怎么选？">查看示例</button>
+        </article>
+      </div>
+    </section>
+
+    <section class="chat-card" id="chat">
+      <div class="chat-heading">
+        <div>
+          <h2>开始聊你的情况</h2>
+          <p>越具体越好：省份、分数、位次、选科、想去哪里、家庭情况、未来目标。</p>
+        </div>
+        <button type="button" id="resetButton" class="secondary-btn">重新开始</button>
+      </div>
+
+      <div class="messages" id="messages" aria-live="polite">
+        <div class="message assistant">
+          <div class="bubble">
+            你好，我是启明志愿。你可以直接说：省份、分数、位次、选科、想去哪里、家里有没有行业资源、以后更看重就业还是稳定。
+          </div>
+        </div>
+      </div>
+
+      <form class="composer" id="composer">
+        <textarea id="messageInput" rows="2" placeholder="比如：湖北物理类580分，位次28000，普通家庭，想去武汉学计算机"></textarea>
+        <div class="composer-actions">
+          <span>Enter 发送，Shift + Enter 换行</span>
+          <button type="submit" id="sendButton">发送</button>
+        </div>
+      </form>
+    </section>
+
+    <footer>
+      本工具只做参考，不替你做最终决定。录取数据、招生计划和志愿规则，请以省考试院和高校招生网官方发布为准。
+    </footer>
+  </main>
+
+  <script src="/web/app.js?v=20260617-example-modal-center"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+openai
+fastapi
+uvicorn[standard]
+pywin32; sys_platform == "win32"

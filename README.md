@@ -330,7 +330,7 @@
 
 ```bash
 # 1. 安装依赖
-pip install openai pywin32
+pip install -r requirements.txt
 
 # 2. 配置 API Key
 cp .env.example .env
@@ -342,7 +342,34 @@ python agent.py
 
 Windows 用户直接双击 **`启动.bat`**。
 
-> 📊 录取数据库已包含在仓库中（20MB压缩包，首次运行自动解压为132MB）。29省114万条真实录取数据。
+### Web 版（自动适配电脑和手机）
+
+本地启动轻后端和网页。页面会根据浏览器 UA 自动识别电脑端/手机端，切换对应布局；案例卡片点击后直接展示 README 本地示例答案，不消耗 API 额度：
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env
+# 编辑 .env，填入项目方后端代理使用的 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+
+打开：
+
+```text
+电脑本机：http://127.0.0.1:8000
+手机访问：http://<电脑局域网IP>:8000
+```
+
+如果手机打不开，确认手机和电脑在同一个 Wi-Fi，并检查系统防火墙是否允许 8000 端口。WSL2 环境下可能还需要 Windows 端口转发或使用 Windows 主机的局域网 IP。
+
+Web 版支持两种模型调用方式：
+
+1. **使用项目方后端**：浏览器只请求启明志愿后端，后端使用 `.env` 里的 Key 调用上游模型服务。适合快速体验，Key 不会暴露给前端。
+2. **使用我自己的 Key**：用户在网页里选择 DeepSeek / 通义千问 / 智谱 GLM / Moonshot / OpenAI / Ollama / 自定义 OpenAI-compatible，并填写自己的 Key。请求由浏览器直接发往所选服务商，启明志愿后端不保存、不接触这个 Key。
+
+自带 Key 模式可以减少项目方后端额度消耗，但要注意：浏览器直连可能受服务商 CORS 策略限制；Key 虽不经过启明志愿后端，但仍会出现在你自己的浏览器运行环境里。不要在共享电脑或不可信页面里填写重要 Key。
+
+> 📊 录取数据库已包含在仓库中（20MB压缩包，首次运行自动解压为132MB）。29省114万条真实录取数据.
 
 ### 模型选择
 
@@ -360,6 +387,14 @@ Windows 用户直接双击 **`启动.bat`**。
 **不推荐**：
 - 7B 级别小模型 — 无法稳定遵循复杂指令，容易复读、格式错乱
 - DeepSeek R1 — 推理模型会自言自语，不适合对话场景
+
+如果你使用 cliproxyapi、sub2api 或其他 OpenAI-compatible 代理，不需要新增 provider，直接在 `.env` 手动填写：
+
+```bash
+LLM_API_KEY=你的代理服务key
+LLM_BASE_URL=https://你的代理服务地址/v1
+LLM_MODEL=你的模型名
+```
 
 在 `.env` 里设置 `LLM_PROVIDER` 即可，不用记 base_url：
 
@@ -389,7 +424,8 @@ LLM_PROVIDER=ollama     # 本地模型
 ```
 
 - **模型无关**：任何 OpenAI 兼容 API 都可以
-- **独立部署**：一个 Python 文件，不依赖任何特定平台
+- **双模式 Web**：可用项目方后端额度，也可让用户在浏览器端直连自己的 Key
+- **轻后端代理**：FastAPI 负责会话、数据库、prompt 和前端页面，项目方 Key 不暴露给浏览器
 - **本地知识库**：Markdown 格式，可随时修改扩充
 
 ---
@@ -410,7 +446,10 @@ LLM_PROVIDER=ollama     # 本地模型
 ## 项目结构
 
 ```
-├── agent.py              # 主程序
+├── agent.py              # CLI 入口
+├── advisor_core.py       # 顾问核心逻辑（CLI/Web 复用）
+├── app.py                # FastAPI Web 入口
+├── web/                  # 手机友好的原生前端
 ├── knowledge_base.md     # 知识库（17模块，850+行）
 ├── system_prompt.md      # Agent 行为规则
 ├── README.md             # 本文件

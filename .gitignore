@@ -27,4 +27,4 @@ build_log.txt
 AGENTS.md
 .cursor
 .devin
-
+.env

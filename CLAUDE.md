@@ -22,7 +22,7 @@ User-facing Chinese copy should be grounded and easy to understand, but not over
 Install the runtime dependencies documented by the project:
 
 ```bash
-pip install openai pywin32
+pip install -r requirements.txt
 ```
 
 `pywin32` is only used for Windows clipboard support in the `/paste` command. On non-Windows environments, the core agent path only needs the OpenAI-compatible client.
@@ -38,6 +38,12 @@ Run the interactive CLI:
 
 ```bash
 python agent.py
+```
+
+Run the local Web MVP:
+
+```bash
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Inside the CLI, supported slash commands are implemented in `agent.py`: `/paste`, `/slots`, `/reset`, `/quit`.
@@ -65,6 +71,12 @@ python build_all_provinces.py
 python clean_data.py
 python verify_provinces.py
 ```
+
+## Web architecture
+
+The Web MVP uses `app.py` as a FastAPI light backend and `web/` for a mobile-first vanilla HTML/CSS/JS frontend. It supports two model-call modes: backend proxy mode using `.env` (`LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`) and BYOK browser-direct mode where the user key stays in the browser and never goes to the Qiming backend. Browser-direct mode can fail because of provider CORS; do not claim it is absolutely safe, only that this project backend does not store or receive the key.
+
+`advisor_core.py` owns shared advisor behavior: provider presets, slot extraction, prompt construction, SQLite admissions lookup, search, backend LLM calls, and prepare/finalize support for BYOK. `agent.py` remains a thin CLI wrapper around that core.
 
 ## Runtime architecture
 
@@ -108,7 +120,10 @@ Important product constraints from the prompt files:
 
 ## Repository structure worth knowing
 
-- `agent.py` — main interactive CLI, provider config, slot extraction, DB lookup, web search, LLM call.
+- `agent.py` — thin interactive CLI wrapper around `advisor_core.py`.
+- `advisor_core.py` — provider presets, slot extraction, prompt construction, DB lookup, search, backend LLM calls, and prepare/finalize for BYOK.
+- `app.py` — FastAPI light backend for Web, sessions, `/api/chat`, `/api/chat/prepare`, `/api/chat/finalize`, `/api/providers`.
+- `web/` — mobile-first vanilla frontend with backend-proxy and BYOK direct modes.
 - `system_prompt.md` — advisor persona, safety/data rules, conversation style.
 - `knowledge_base.md` — large gaokao planning knowledge base injected into the model.
 - `admission_clean.db.gz` — compressed admissions database used at runtime.
