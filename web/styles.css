@@ -418,6 +418,48 @@ body.device-mobile .example-primary-btn { order: 1; }
 }
 .message.assistant .bubble { background: #f2f4f7; color: var(--ink); border-bottom-left-radius: 7px; }
 .message.user .bubble { background: linear-gradient(135deg, #3158f5, #5b6df8); color: #fff; border-bottom-right-radius: 7px; }
+.bubble strong { color: #102a83; font-weight: 900; }
+.process .process-bubble {
+  width: min(92%, 560px);
+  background: #ffffff;
+  border: 1px solid rgba(49, 88, 245, 0.14);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+.process-title { margin-bottom: 10px; color: #1d2939; font-weight: 900; }
+.process-list { display: grid; gap: 9px; }
+.process-step { display: grid; grid-template-columns: 16px 1fr; gap: 9px; align-items: flex-start; }
+.process-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: #98a2b3;
+}
+.process-step.done .process-dot { background: #16a34a; }
+.process-step.running .process-dot {
+  background: #3158f5;
+  box-shadow: 0 0 0 5px rgba(49, 88, 245, 0.12);
+  animation: processPulse 1.1s ease-in-out infinite;
+}
+.process-step.skipped .process-dot { background: #cbd5e1; }
+.process-step.error .process-dot { background: #e11d48; }
+.process-step strong { display: block; color: #1d2939; font-size: 14px; }
+.process-step small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.message.process.done .process-title { color: #16a34a; }
+.message.process.failed .process-title { color: #be123c; }
+.process-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+.process-retry-btn {
+  border: 0;
+  border-radius: 14px;
+  padding: 9px 13px;
+  background: #3158f5;
+  color: #fff;
+  font-weight: 900;
+}
+@keyframes processPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 4px rgba(49, 88, 245, 0.10); }
+  50% { transform: scale(1.18); box-shadow: 0 0 0 8px rgba(49, 88, 245, 0.18); }
+}
 .message.error .bubble { background: #fff1f2; color: #be123c; }
 .message.loading .bubble { color: var(--muted); }
 

@@ -131,12 +131,26 @@ function applyDeviceMode() {
   document.body.classList.toggle('device-desktop', state.device === 'desktop');
 }
 
+function renderRichText(target, text) {
+  target.textContent = '';
+  const parts = String(text || '').split(/(\*\*[^*]+\*\*)/g);
+  parts.forEach(part => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      const strong = document.createElement('strong');
+      strong.textContent = part.slice(2, -2);
+      target.appendChild(strong);
+    } else if (part) {
+      target.appendChild(document.createTextNode(part));
+    }
+  });
+}
+
 function addMessage(role, text, extraClass = '') {
   const wrapper = document.createElement('div');
   wrapper.className = `message ${role} ${extraClass}`.trim();
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
-  bubble.textContent = text;
+  renderRichText(bubble, text);
   wrapper.appendChild(bubble);
   els.messages.appendChild(wrapper);
   els.messages.scrollTop = els.messages.scrollHeight;
@@ -295,17 +309,130 @@ async function testConnection() {
   }
 }
 
-async function sendBackend(message) {
-  const res = await fetch('/api/chat', {
+function looksLikeInvalidOutput(text) {
+  return /<\s*\/?\s*tool_call\b|<\s*function\s*=|<\s*parameter\s*=|<\s*\/\s*function\s*>/i.test(String(text || ''));
+}
+
+function addProcessMessage() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'message assistant process';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble process-bubble';
+
+  const title = document.createElement('div');
+  title.className = 'process-title';
+  title.textContent = '正在处理你的问题';
+
+  const list = document.createElement('div');
+  list.className = 'process-list';
+
+  const actions = document.createElement('div');
+  actions.className = 'process-actions';
+
+  bubble.append(title, list, actions);
+  wrapper.appendChild(bubble);
+  els.messages.appendChild(wrapper);
+  els.messages.scrollTop = els.messages.scrollHeight;
+
+  let tick = 0;
+  let baseTitle = '正在处理你的问题';
+  const timer = window.setInterval(() => {
+    if (wrapper.classList.contains('done') || wrapper.classList.contains('failed')) return;
+    tick = (tick + 1) % 4;
+    title.textContent = `${baseTitle}${'.'.repeat(tick)}`;
+  }, 450);
+
+  function setSteps(steps) {
+    list.innerHTML = '';
+    (steps || []).forEach(step => {
+      const item = document.createElement('div');
+      item.className = `process-step ${step.status || 'running'}`;
+      const dot = document.createElement('span');
+      dot.className = 'process-dot';
+      const content = document.createElement('div');
+      const stepTitle = document.createElement('strong');
+      stepTitle.textContent = step.title || '处理中';
+      const detail = document.createElement('small');
+      detail.textContent = step.detail || '';
+      content.append(stepTitle, detail);
+      item.append(dot, content);
+      list.appendChild(item);
+    });
+    els.messages.scrollTop = els.messages.scrollHeight;
+  }
+
+  setSteps([
+    { title: '接收问题', status: 'done', detail: '已经收到你的描述。' },
+    { title: '识别信息和查询数据', status: 'running', detail: '正在识别省份、分数、位次，并查询本地录取数据库。' },
+  ]);
+
+  return {
+    wrapper,
+    setSteps,
+    setTitle(nextTitle) {
+      baseTitle = nextTitle;
+      title.textContent = nextTitle;
+    },
+    finish(extraSteps) {
+      if (extraSteps) setSteps(extraSteps);
+      window.clearInterval(timer);
+      title.textContent = '分析完成';
+      wrapper.classList.add('done');
+    },
+    fail(message, onRetry) {
+      window.clearInterval(timer);
+      title.textContent = '这次生成没成功';
+      wrapper.classList.add('failed');
+      setSteps([{ title: '需要重试', status: 'error', detail: message }]);
+      actions.innerHTML = '';
+      if (typeof onRetry === 'function') {
+        const retryButton = document.createElement('button');
+        retryButton.type = 'button';
+        retryButton.className = 'process-retry-btn';
+        retryButton.textContent = '重新生成';
+        retryButton.addEventListener('click', onRetry);
+        actions.appendChild(retryButton);
+      }
+    },
+  };
+}
+
+async function sendBackend(message, processView) {
+  const startRes = await fetch('/api/chat/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: state.sessionId, message }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || '后端请求失败。');
-  state.sessionId = data.session_id;
+  const started = await startRes.json();
+  if (!startRes.ok) throw new Error(started.detail || '后端准备上下文失败。');
+
+  state.sessionId = started.session_id;
   localStorage.setItem('qiming_session_id', state.sessionId);
-  return data.reply;
+  if (processView) {
+    processView.setSteps(started.progress_steps || []);
+    processView.setTitle('正在生成志愿建议');
+  }
+
+  const completeRes = await fetch('/api/chat/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: state.sessionId, turn_id: started.turn_id }),
+  });
+  const completed = await completeRes.json();
+  if (!completeRes.ok) throw new Error(completed.detail || '后端生成回复失败。');
+  if (looksLikeInvalidOutput(completed.reply) || completed.invalid_output_blocked) {
+    throw new Error(completed.reply || '模型输出格式不对，请重新生成。');
+  }
+  if (processView && completed.retry_count > 0) {
+    const retrySteps = (started.progress_steps || []).map(step => ({ ...step, status: step.status === 'running' ? 'done' : step.status }));
+    retrySteps.push({
+      title: '自动重试模型输出',
+      status: 'done',
+      detail: `检测到模型输出了工具调用格式，已自动重试 ${completed.retry_count} 次。`,
+    });
+    processView.setSteps(retrySteps);
+  }
+  return completed.reply;
 }
 
 async function sendByok(message) {
@@ -335,20 +462,22 @@ async function sendByok(message) {
   return finalized.reply;
 }
 
-async function sendMessage(text) {
+async function sendMessage(text, options = {}) {
   const message = text.trim();
   if (!message) return;
-  addMessage('user', message);
+  const showUser = options.showUser !== false;
+  if (showUser) addMessage('user', message);
   els.messageInput.value = '';
   setBusy(true);
-  const loading = addMessage('assistant', '正在分析...', 'loading');
+  const processView = addProcessMessage();
   try {
-    const reply = state.mode === 'byok' ? await sendByok(message) : await sendBackend(message);
-    loading.remove();
+    const reply = state.mode === 'byok' ? await sendByok(message) : await sendBackend(message, processView);
+    processView.finish();
     addMessage('assistant', reply);
   } catch (err) {
-    loading.remove();
-    addMessage('assistant', err.message || String(err), 'error');
+    const errorText = err.message || String(err);
+    processView.fail(errorText, () => sendMessage(message, { showUser: false }));
+    addMessage('assistant', errorText, 'error');
   } finally {
     setBusy(false);
     els.messageInput.focus();

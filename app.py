@@ -62,6 +62,11 @@ class FinalizeRequest(BaseModel):
     assistant_reply: str = Field(..., min_length=1)
 
 
+class CompleteRequest(BaseModel):
+    session_id: str = Field(..., min_length=1)
+    turn_id: str = Field(..., min_length=1)
+
+
 class ResetRequest(BaseModel):
     session_id: str | None = None
 
@@ -145,16 +150,47 @@ def create_session():
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     if not env_bool("WEB_ENABLE_BACKEND_LLM", True):
-        raise HTTPException(status_code=403, detail="后端代理模式已关闭，请使用自己的 Key。")
+        raise HTTPException(status_code=403, detail="后端代理模式已关闭。")
     session_id, session = get_session(req.session_id)
     result = session.chat(req.message)
     result["session_id"] = session_id
     return result
 
 
+@app.post("/api/chat/start")
+def start_chat(req: ChatRequest):
+    if not env_bool("WEB_ENABLE_BACKEND_LLM", True):
+        raise HTTPException(status_code=403, detail="后端代理模式已关闭。")
+    session_id, session = get_session(req.session_id)
+    prepared = session.prepare_turn(req.message)
+    return {
+        "session_id": session_id,
+        "turn_id": prepared["turn_id"],
+        "slots": prepared["slots"],
+        "missing_slots": prepared["missing_slots"],
+        "slot_updates": prepared.get("slot_updates", []),
+        "progress_steps": prepared.get("progress_steps", []),
+    }
+
+
+@app.post("/api/chat/complete")
+def complete_chat(req: CompleteRequest):
+    if not env_bool("WEB_ENABLE_BACKEND_LLM", True):
+        raise HTTPException(status_code=403, detail="后端代理模式已关闭。")
+    session = sessions.get(req.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在，请刷新页面重新开始。")
+    try:
+        result = session.complete_prepared_turn(req.turn_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    result["session_id"] = req.session_id
+    return result
+
+
 @app.post("/api/chat/prepare")
 def prepare_chat(req: PrepareRequest):
-    if not env_bool("WEB_ENABLE_BYOK_DIRECT", True):
+    if not env_bool("WEB_ENABLE_BYOK_DIRECT", False):
         raise HTTPException(status_code=403, detail="自带 Key 直连模式已关闭。")
     session_id, session = get_session(req.session_id)
     prepared = session.prepare_turn(req.message)

@@ -470,7 +470,6 @@ def cleanup_format(text: str) -> str:
         return text
     text = soften_tone(text)
     text = re.sub(r"^\s*[-—]{3,}\s*$", "", text, flags=re.MULTILINE)
-    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
     text = re.sub(r"^\s*[-*]\s+", "", text, flags=re.MULTILINE)
     text = re.sub(r"^\s*\d+[\.、]\s*", "", text, flags=re.MULTILINE)
@@ -537,6 +536,32 @@ def extract_chat_content(resp: Any) -> str:
     raise ValueError(f"模型服务返回格式不符合 OpenAI-compatible Chat Completions：{type(resp).__name__}")
 
 
+def is_invalid_model_output(text: str) -> bool:
+    if not text:
+        return True
+    patterns = [
+        r"<\s*tool_call\b",
+        r"<\s*/\s*tool_call\s*>",
+        r"<\s*function\s*=",
+        r"<\s*parameter\s*=",
+        r"</\s*function\s*>",
+        r"</\s*parameter\s*>",
+        r"^\s*\{\s*\"tool",
+    ]
+    return any(re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE) for pattern in patterns)
+
+
+def retry_instruction(reason: str) -> dict[str, str]:
+    return {
+        "role": "system",
+        "content": (
+            f"【重新生成要求】上一轮输出不合格：{reason}。"
+            "你没有任何可调用工具，绝对不能输出 <tool_call>、<function>、<parameter>、JSON tool call 或 XML。"
+            "请直接用自然中文回答用户；保留少量 **重点** 加粗；如果数据不足，就明确说明并给出下一步核实建议。"
+        ),
+    }
+
+
 MAJOR_KEYWORDS = [
     "计算机", "软件", "电气", "机械", "土木", "临床", "口腔", "法学", "会计", "金融",
     "物联网", "人工智能", "大数据", "电子", "通信", "自动化", "材料", "化工", "生物",
@@ -576,12 +601,13 @@ class AdvisorSession:
 
 请在回答时：
 1. 语气必须诚恳、平等、真诚。先接住用户的目标，再分析取舍；不要居高临下，不要幸灾乐祸。
-2. 避免这些句式：我直接给你说结论、不绕弯、我帮你点破、说白了、够不着、别想、被带偏、只能满足两个半。
-3. 如果用户信息不全，追问缺失的槽位（用自然的方式，不要像填表）。
-4. 如果用户明确说“没想法/不知道/都行”，先做方向引导：用 2-3 条可选路径帮他缩小范围，再问 2 个关键问题；不要一上来堆学校清单。
-5. 如果信息已经足够（至少省份+分数/位次+核心诉求），给出冲稳保推荐。
-6. 遇到需要最新数据时，提示用户建议查官方渠道，或结合搜索信息回答。
-7. 保持接地气但不土味，把机会、风险和需要核实的数据讲清楚。Web 首轮回复尽量控制在 800 字以内。"""
+2. 每次回复要突出重点：允许用少量 `**重点**` 加粗关键结论、风险边界、推荐方向和最后追问；不要整篇都加粗。
+3. 避免这些句式：我直接给你说结论、不绕弯、我帮你点破、说白了、够不着、别想、被带偏、只能满足两个半。
+4. 如果用户信息不全，追问缺失的槽位（用自然的方式，不要像填表）。
+5. 如果用户明确说“没想法/不知道/都行”，先做方向引导：用 2-3 条可选路径帮他缩小范围，再问 2 个关键问题；不要一上来堆学校清单。
+6. 如果信息已经足够（至少省份+分数/位次+核心诉求），给出冲稳保推荐。
+7. 遇到需要最新数据时，提示用户建议查官方渠道，或结合搜索信息回答。
+8. 保持接地气但不土味，把机会、风险和需要核实的数据讲清楚。Web 首轮回复尽量控制在 800 字以内。"""
 
     def _find_school(self, user_msg: str) -> str | None:
         for m in re.finditer(r"(?:大学|学院)", user_msg):
@@ -691,11 +717,56 @@ class AdvisorSession:
             messages.append({"role": "system", "content": "【数据边界】数据库和搜索均未找到该学校/专业在该省的录取数据。必须明确告诉用户没有数据，建议查省考试院官网或学校招生网。禁止编造任何数字。"})
 
         turn_id = str(uuid.uuid4())
+        progress_steps = [
+            {
+                "title": "识别基础信息",
+                "status": "done",
+                "detail": "；".join(updates) if updates else "已读取你的问题，继续结合上下文判断。",
+            }
+        ]
+        if data_summary:
+            data_lines = [line for line in data_summary.split("\n") if line.startswith("· ")]
+            progress_steps.append({
+                "title": "查询本地录取数据库",
+                "status": "done",
+                "detail": f"已查询 admission_clean.db，命中 {len(data_lines)} 条附近参考数据。",
+            })
+        else:
+            progress_steps.append({
+                "title": "查询本地录取数据库",
+                "status": "done",
+                "detail": "本地库没有命中足够相关的数据，回答会提醒以官方数据核实。",
+            })
+        if web_info:
+            progress_steps.append({
+                "title": "补充公开信息",
+                "status": "done",
+                "detail": "已尝试抓取公开网页信息，作为辅助参考。",
+            })
+        elif self.config["enable_search"] and should_search(user_msg):
+            progress_steps.append({
+                "title": "补充公开信息",
+                "status": "done",
+                "detail": "已尝试联网补充，但没有拿到足够稳定的信息。",
+            })
+        else:
+            progress_steps.append({
+                "title": "补充公开信息",
+                "status": "skipped",
+                "detail": "这轮优先使用本地知识库和录取数据，没有触发联网搜索。",
+            })
+        progress_steps.append({
+            "title": "生成志愿建议",
+            "status": "running",
+            "detail": "正在把分数、位次、地域和专业诉求整理成自然回答。",
+        })
         turn_context = {
             "user_msg": user_msg,
+            "messages": messages,
             "search_results": search_results,
             "search_hint": search_hint,
             "web_info": web_info,
+            "progress_steps": progress_steps,
         }
         self.pending_turns[turn_id] = turn_context
 
@@ -707,7 +778,40 @@ class AdvisorSession:
             "slots": copy.deepcopy(self.slots),
             "missing_slots": missing_slots(self.slots),
             "slot_updates": updates,
+            "progress_steps": copy.deepcopy(progress_steps),
         }
+
+    def complete_prepared_turn(self, turn_id: str) -> dict[str, Any]:
+        turn_context = self.pending_turns.get(turn_id)
+        if not turn_context:
+            raise ValueError("会话轮次不存在或已经完成，请重新发送。")
+        messages = turn_context.get("messages")
+        if not isinstance(messages, list):
+            raise ValueError("会话上下文不完整，请重新发送。")
+
+        retry_count = 0
+        working_messages = list(messages)
+        for attempt in range(3):
+            try:
+                assistant_reply = self.complete_with_backend(working_messages)
+            except Exception as e:
+                assistant_reply = f"出错了：{e}\n请检查后端 .env 里的 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL 是否正确。"
+                break
+
+            if not is_invalid_model_output(assistant_reply):
+                break
+
+            retry_count += 1
+            if attempt >= 2:
+                assistant_reply = "这次模型返回了工具调用格式，我没有把那段内容直接展示给你。可以点下面的“重新生成”，我会再按自然中文回答重试一次。"
+                break
+            working_messages.append(retry_instruction("模型输出了工具调用/XML，而不是自然语言回答"))
+
+        result = self.finalize_turn(turn_id, assistant_reply)
+        result["turn_id"] = turn_id
+        result["retry_count"] = retry_count
+        result["invalid_output_blocked"] = retry_count > 0 and "工具调用格式" in assistant_reply
+        return result
 
     def complete_with_backend(self, messages: list[dict[str, str]]) -> str:
         client = OpenAI(base_url=normalize_base_url(str(self.config["base_url"])), api_key=self.config["api_key"])
@@ -754,13 +858,9 @@ class AdvisorSession:
 
     def chat(self, user_msg: str) -> dict[str, Any]:
         prepared = self.prepare_turn(user_msg)
-        try:
-            assistant_reply = self.complete_with_backend(prepared["messages"])
-        except Exception as e:
-            assistant_reply = f"出错了：{e}\n请检查后端 .env 里的 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL 是否正确。"
-        result = self.finalize_turn(prepared["turn_id"], assistant_reply)
-        result["turn_id"] = prepared["turn_id"]
+        result = self.complete_prepared_turn(prepared["turn_id"])
         result["slot_updates"] = prepared.get("slot_updates", [])
+        result["progress_steps"] = prepared.get("progress_steps", [])
         return result
 
     def reset(self) -> None:
