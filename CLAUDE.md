@@ -1,100 +1,114 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working in this repository.
 
 ## Project overview
 
-启明志愿 is a lightweight Python 3.10+ CLI advisor for Chinese gaokao admissions planning, derived from https://github.com/ziqihe10-droid/xuefeng-agent. It combines:
+启明志愿 is a Debian/server-oriented Web MVP for gaokao admissions advising. It is no longer maintained as a Windows one-click or personal local CLI deployment.
 
-- an OpenAI-compatible chat client in `agent.py`,
-- local prompt and domain knowledge files (`system_prompt.md`, `knowledge_base.md`),
-- a compressed SQLite admissions database (`admission_clean.db.gz`) that is expanded on first run,
-- optional live web search for fresh admissions/school information.
+Runtime path:
 
-The user-facing docs are primarily Chinese: `README.md`, `TUTORIAL.md`, `小白教程-零基础也能用.md`, examples, and marketing/video scripts.
+- `app.py` — FastAPI backend entry, static frontend mount, API routes.
+- `advisor_core.py` — advisor core: env loading, provider presets, slot extraction, SQLite admissions lookup, prompt construction, LLM call, response cleanup.
+- `web/` — vanilla frontend for desktop/mobile browsers.
+- `system_prompt.md` — advisor behavior, data, and tone rules.
+- `knowledge_base.md` — domain knowledge injected into the advisor.
+- `admission_clean.db.gz` — compressed runtime admissions database; `advisor_core.ensure_admission_db()` expands it to `admission_clean.db` if needed.
 
-## Copywriting style
+Removed legacy scope:
 
-User-facing Chinese copy should be grounded and easy to understand, but not overly rustic, aggressive, or short-video-like. Prefer plain, warm, credible wording around “打破信息差 / 看清选择 / 讲清机会和风险”. Avoid exaggerated phrases, coarse jokes, and fear-driven marketing language.
+- Windows `.bat` startup.
+- personal zero-code Windows tutorials.
+- promo video assets.
+- old CLI entry and data-building scripts with hardcoded Windows paths.
+
+## Copywriting and advisor tone
+
+User-facing Chinese copy must be grounded, warm, credible, and easy to understand. The advisor must sound sincere, equal, and helpful, not superior or gleefully negative.
+
+Avoid phrases with pressure or mockery, including:
+
+- “我直接给你说结论，不绕弯”
+- “我帮你点破”
+- overusing “说白了” as a blunt put-down
+- “够不着”
+- “别想”
+- “被带偏”
+- “只能满足两个半”
+
+Prefer:
+
+- “这个目标可以理解”
+- “我们主要看它和学校层次、专业之间怎么取舍”
+- “不是不能考虑，只是要准备更稳的备选”
+- “我帮你把选择拆开看”
+- “最终还要以省考试院和高校招生网当年数据为准”
 
 ## Common commands
 
-Install the runtime dependencies documented by the project:
+Install dependencies:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-`pywin32` is only used for Windows clipboard support in the `/paste` command. On non-Windows environments, the core agent path only needs the OpenAI-compatible client.
-
-Configure a local API key before running the agent:
+Configure server env:
 
 ```bash
 cp .env.example .env
-# edit .env and set LLM_API_KEY plus either LLM_PROVIDER or LLM_BASE_URL/LLM_MODEL
+# edit LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
 ```
 
-Run the interactive CLI:
+Run locally:
 
 ```bash
-python agent.py
+uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Run the local Web MVP:
+Run on server:
 
 ```bash
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-Inside the CLI, supported slash commands are implemented in `agent.py`: `/paste`, `/slots`, `/reset`, `/quit`.
-
-Run lightweight smoke checks:
+Smoke checks:
 
 ```bash
-python gaokao_data.py          # exercises the standalone realtime search helper
-python -m py_compile agent.py gaokao_data.py real_data.py build_real_db.py build_all_provinces.py clean_data.py verify_provinces.py
+python -m py_compile advisor_core.py app.py
+node --check web/app.js
+curl http://127.0.0.1:8000/api/health
 ```
 
-There is no formal automated test suite or pytest configuration in this repository right now, so there is no existing “single test” command. For targeted validation, run the relevant script directly or add focused tests before relying on `pytest` conventions.
+There is no formal pytest suite right now.
 
-For data-building work, install the Excel dependencies first:
+## Deployment notes
 
-```bash
-pip install xlrd openpyxl
-```
+Primary target is Debian with systemd + Nginx reverse proxy.
 
-Before running data import/cleanup scripts, inspect and update their hardcoded Windows paths (`DATA_DIR`, `SRC`, `DST`, `DB_PATH`). Several scripts currently point at desktop paths such as `E:\桌面\...` rather than repository-relative files:
+Recommended production shape:
 
-```bash
-python build_real_db.py
-python build_all_provinces.py
-python clean_data.py
-python verify_provinces.py
-```
+- bind uvicorn to `127.0.0.1:8000` behind Nginx;
+- use HTTPS at Nginx;
+- keep `.env` outside Git and readable only by the service user;
+- set `WEB_CORS_ORIGINS` to the production origin if cross-origin access is needed;
+- keep `WEB_ENABLE_BACKEND_LLM=true`;
+- keep `WEB_ENABLE_BYOK_DIRECT=false` unless intentionally exposing BYOK browser-direct mode.
 
-## Web architecture
+## Security notes
 
-The Web MVP uses `app.py` as a FastAPI light backend and `web/` for a mobile-first vanilla HTML/CSS/JS frontend. It supports two model-call modes: backend proxy mode using `.env` (`LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`) and BYOK browser-direct mode where the user key stays in the browser and never goes to the Qiming backend. Browser-direct mode can fail because of provider CORS; do not claim it is absolutely safe, only that this project backend does not store or receive the key.
+- Never commit `.env` or real API keys.
+- Default backend mode does not expose `LLM_API_KEY` to browsers.
+- Public deployments can consume backend quota unless access control is added.
+- HTTP exposes user prompts/responses on the network; production should use HTTPS.
+- BYOK mode places the user's own key in their browser runtime; do not describe it as absolutely safe.
 
-`advisor_core.py` owns shared advisor behavior: provider presets, slot extraction, prompt construction, SQLite admissions lookup, search, backend LLM calls, and prepare/finalize support for BYOK. `agent.py` remains a thin CLI wrapper around that core.
+## Data notes
 
-## Runtime architecture
+`admission_clean.db.gz` is a runtime artifact and should be kept. The uncompressed `admission_clean.db` is generated locally/server-side and should not be committed.
 
-`agent.py` is the main application and contains most runtime behavior:
-
-1. Loads `.env` with a small built-in dotenv reader.
-2. Resolves provider presets from `LLM_PROVIDER` (`deepseek`, `qwen`, `glm`, `moonshot`, `openai`, `ollama`) or explicit `LLM_BASE_URL`/`LLM_MODEL`.
-3. Auto-decompresses `admission_clean.db.gz` to `admission_clean.db` if the uncompressed DB is missing, then opens SQLite.
-4. Tracks consultation slots in the global `SLOTS` mapping: province, score/rank, subject, interest, region, family, goal.
-5. Builds each LLM system message from `system_prompt.md`, the full `knowledge_base.md`, search notes, and current slot state.
-6. On each user turn, tries local SQLite admissions lookup first, then web search when `should_search()` triggers, then calls the OpenAI-compatible chat completion API.
-7. Cleans Markdown-ish formatting from the model response before printing.
-
-The README/docstring mention `python agent.py --model ...` and `python agent.py --no-search`, but current `agent.py` does not parse command-line arguments. Prefer `.env`/environment configuration unless adding real argparse support.
-
-## Data flow and database notes
-
-The runtime database path is repository-local `admission_clean.db`; the committed artifact is `admission_clean.db.gz`. The expected `admission` table used by `query_real_data()` has these queried fields:
+The current `admission` table expected by `advisor_core.query_real_data()` uses:
 
 - `school`
 - `major`
@@ -103,43 +117,11 @@ The runtime database path is repository-local `admission_clean.db`; the committe
 - `province`
 - `year`
 
-`build_real_db.py` and `build_all_provinces.py` parse `.xls`/`.xlsx` files into SQLite, while `clean_data.py` filters noisy rows into a cleaner DB. These scripts are operational utilities, not part of the normal CLI startup path, and they require path review before use.
+If future data rebuilding is needed, recover the deleted historical scripts from Git history and rebuild them as parameterized Debian-friendly tools rather than restoring hardcoded Windows paths into the root project.
 
-`gaokao_data.py` is a standalone Baidu-based realtime admissions search helper. `agent.py` imports it defensively, but the main chat path also has its own `web_search()` implementation.
+## Important product behavior
 
-## Prompt and product behavior
-
-The advisor persona and response constraints live in `system_prompt.md`; the domain methods and school/major knowledge live in `knowledge_base.md`. Changes to either file directly affect model behavior without code changes.
-
-Important product constraints from the prompt files:
-
-- precise admissions numbers must come from the local database, official/user-provided data, or clearly marked search results;
-- if data is missing or uncertain, the advisor should say so rather than inventing scores/ranks;
-- final advisor replies are intended to sound like natural Chinese conversation, not Markdown reports;
-- consultation should collect enough user context before giving detailed school/major recommendations.
-
-## Repository structure worth knowing
-
-- `agent.py` — thin interactive CLI wrapper around `advisor_core.py`.
-- `advisor_core.py` — provider presets, slot extraction, prompt construction, DB lookup, search, backend LLM calls, and prepare/finalize for BYOK.
-- `app.py` — FastAPI light backend for Web, sessions, `/api/chat`, `/api/chat/prepare`, `/api/chat/finalize`, `/api/providers`.
-- `web/` — mobile-first vanilla frontend with backend-proxy and BYOK direct modes.
-- `system_prompt.md` — advisor persona, safety/data rules, conversation style.
-- `knowledge_base.md` — large gaokao planning knowledge base injected into the model.
-- `admission_clean.db.gz` — compressed admissions database used at runtime.
-- `gaokao_data.py` — standalone realtime search helper.
-- `build_real_db.py`, `build_all_provinces.py`, `clean_data.py`, `real_data.py`, `verify_provinces.py` — data import/cleanup/validation utilities with hardcoded local paths.
-- `examples/demo_conversation.md` — realistic manual prompts for smoke testing behavior.
-- `zhiyuan-video/` — promotional HTML/video assets; independent from the CLI runtime.
-
-## Existing agent/tooling context
-
-`.cursor/rules.md` and `.devin/rules.md` are generated Trellis pointers. The repository is Trellis-tracked; if using that workflow, relevant commands include:
-
-```bash
-trellis status
-trellis seed
-trellis log
-```
-
-The generated Trellis context points to `.trellis/agents/AGENTS.md` for additional Trellis-specific operating context. Root `AGENTS.md` already contains broader repository guidelines; keep this `CLAUDE.md` aligned if those guidelines change.
+- Example cards open a modal with local example content and must not call the API.
+- Local admissions data is an internal reference for the model. Do not prepend raw `[真实录取数据]` dumps to user replies.
+- If the user says they have no direction, first guide them through 2-3 possible paths and ask only a couple of key questions.
+- Responses should remain conversational, not Markdown reports.

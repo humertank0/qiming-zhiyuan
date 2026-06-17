@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """启明志愿核心顾问逻辑。
 
-CLI (`agent.py`) 和 Web (`app.py`) 都复用这里的配置、槽位、数据库查询、
-搜索、prompt 构造和 OpenAI-compatible 调用。这里不处理 input()/print()，
-也不直接依赖 FastAPI。
+Web (`app.py`) 复用这里的配置、槽位、数据库查询、
+搜索、prompt 构造和 OpenAI-compatible 调用。这里不处理 FastAPI 路由，
 """
 
 from __future__ import annotations
@@ -83,13 +82,6 @@ PRESETS: dict[str, dict[str, Any]] = {
         "model": "gpt-4o",
         "requires_key": True,
         "note": "OpenAI 官方接口通常不建议在浏览器端暴露 Key。",
-    },
-    "ollama": {
-        "label": "Ollama 本地",
-        "base_url": "http://localhost:11434/v1",
-        "model": "qwen2.5:7b",
-        "requires_key": False,
-        "note": "这里的 localhost 指用户自己的电脑；如浏览器直连失败，请检查 Ollama origins/CORS 配置。",
     },
     "custom": {
         "label": "自定义 OpenAI-compatible",
@@ -775,10 +767,6 @@ class AdvisorSession:
         self.conversation = []
         self.slots = new_slots()
         self.pending_turns = {}
-
-
-# 兼容 CLI 旧命名；agent.py 继续使用 GaokaoAdvisor 作为交互式顾问。
-GaokaoAdvisor = AdvisorSession
 
 
 def test_connection(config: dict[str, Any] | None = None) -> tuple[bool, str]:

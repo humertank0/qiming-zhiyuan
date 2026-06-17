@@ -89,7 +89,7 @@ async def security_headers(request, call_next):
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
-    # BYOK 直连需要允许常见 provider 和 custom API；因此这里不设置过严 CSP。
+    # 如开启 BYOK 直连，需要允许常见 provider 和 custom API；因此这里不设置过严 CSP。
     return response
 
 
@@ -107,7 +107,7 @@ def health():
         "ok": True,
         "db_available": admission_db_available(),
         "backend_llm_enabled": env_bool("WEB_ENABLE_BACKEND_LLM", True),
-        "byok_direct_enabled": env_bool("WEB_ENABLE_BYOK_DIRECT", True),
+        "byok_direct_enabled": env_bool("WEB_ENABLE_BYOK_DIRECT", False),
         "backend_key_configured": bool(CONFIG.get("api_key")),
         "model": CONFIG.get("model"),
         "base_url_host": base_url_host(str(CONFIG.get("base_url", ""))),
@@ -119,7 +119,7 @@ def health():
 def web_config():
     return {
         "backend_llm_enabled": env_bool("WEB_ENABLE_BACKEND_LLM", True),
-        "byok_direct_enabled": env_bool("WEB_ENABLE_BYOK_DIRECT", True),
+        "byok_direct_enabled": env_bool("WEB_ENABLE_BYOK_DIRECT", False),
         "allow_byok_proxy": env_bool("ALLOW_BYOK_PROXY", False),
         "default_provider": CONFIG.get("provider", "custom"),
         "default_model": CONFIG.get("model"),

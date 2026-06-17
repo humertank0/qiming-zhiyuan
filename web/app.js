@@ -2,6 +2,7 @@ const state = {
   sessionId: localStorage.getItem('qiming_session_id') || null,
   mode: localStorage.getItem('qiming_mode') || 'backend',
   providers: [],
+  config: null,
   apiKeyMemory: '',
   device: 'desktop',
 };
@@ -12,7 +13,6 @@ const fallbackProviders = [
   { id: 'glm', label: '智谱 GLM', base_url: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4', requires_key: true, note: '智谱 OpenAI-compatible 接口。浏览器直连可能受 CORS 限制。' },
   { id: 'moonshot', label: 'Moonshot', base_url: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k', requires_key: true, note: 'Moonshot OpenAI-compatible 接口。浏览器直连可能受 CORS 限制。' },
   { id: 'openai', label: 'OpenAI', base_url: 'https://api.openai.com/v1', model: 'gpt-4o', requires_key: true, note: 'OpenAI 官方接口通常不建议在浏览器端暴露 Key。' },
-  { id: 'ollama', label: 'Ollama 本地', base_url: 'http://localhost:11434/v1', model: 'qwen2.5:7b', requires_key: false, note: 'localhost 指用户自己的电脑。' },
   { id: 'custom', label: '自定义 OpenAI-compatible', base_url: '', model: '', requires_key: true, note: '只填写你信任的 API 地址。' },
 ];
 
@@ -150,6 +150,9 @@ function setBusy(busy) {
 }
 
 function setMode(mode) {
+  if (mode === 'byok' && state.config && state.config.byok_direct_enabled === false) {
+    mode = 'backend';
+  }
   state.mode = mode;
   localStorage.setItem('qiming_mode', mode);
   document.querySelectorAll('input[name="mode"]').forEach(input => {
@@ -171,8 +174,24 @@ function applyProvider(provider) {
   const saved = localStorage.getItem(`qiming_api_key_${provider.id}`);
   els.apiKeyInput.value = saved || state.apiKeyMemory || '';
   els.rememberKeyInput.checked = Boolean(saved);
-  els.apiKeyInput.placeholder = provider.requires_key ? '只保存在你的浏览器里' : 'Ollama 可留空';
+  els.apiKeyInput.placeholder = provider.requires_key ? '只保存在你的浏览器里' : '可留空';
   els.testResult.textContent = provider.note || '';
+}
+
+async function loadWebConfig() {
+  try {
+    const res = await fetch('/api/config');
+    state.config = await res.json();
+  } catch (_) {
+    state.config = { backend_llm_enabled: true, byok_direct_enabled: false };
+  }
+
+  const byokEnabled = state.config.byok_direct_enabled !== false;
+  els.byokModeLabel.classList.toggle('hidden', !byokEnabled);
+  if (!byokEnabled && state.mode === 'byok') {
+    state.mode = 'backend';
+    localStorage.setItem('qiming_mode', 'backend');
+  }
 }
 
 async function loadProviders() {
@@ -540,6 +559,7 @@ function bindEvents() {
 
 async function init() {
   applyDeviceMode();
+  await loadWebConfig();
   bindEvents();
   setMode(state.mode === 'byok' ? 'byok' : 'backend');
   await loadProviders();
