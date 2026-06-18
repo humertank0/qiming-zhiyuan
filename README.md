@@ -41,6 +41,9 @@ WEB_HOST=0.0.0.0
 WEB_PORT=8000
 WEB_ENABLE_BACKEND_LLM=true
 WEB_ENABLE_BYOK_DIRECT=false
+WEB_MAX_SESSIONS=3000
+WEB_SESSION_TTL_SECONDS=7200
+BACKEND_LLM_CONCURRENCY=80
 ```
 
 启动：
@@ -124,6 +127,50 @@ WEB_CORS_ORIGINS=https://your-domain.example
 
 ---
 
+## 并发与容量配置
+
+当前后端已按多人在线做基础改造：
+
+- FastAPI 接口使用异步路径，后端模型调用使用 `AsyncOpenAI`，避免单个模型请求阻塞整个 worker。
+- 内存会话带 TTL 和最大容量，避免长期运行时会话无限增长。
+- 同一会话内用锁串行处理，避免用户连续点击导致上下文错乱。
+- 全局模型并发用信号量限制，避免 1000 人同时在线时把上游模型服务打爆。
+
+关键环境变量：
+
+```env
+WEB_MAX_SESSIONS=3000          # 单个进程最多保留多少个会话
+WEB_SESSION_TTL_SECONDS=7200   # 会话多久未使用后过期
+BACKEND_LLM_CONCURRENCY=80     # 单个进程同时调用上游模型的最大请求数
+MAX_HISTORY_MESSAGES=20        # 每个会话保留的历史消息数
+```
+
+如果目标是 1000 人同时在线，建议先按这个思路部署：
+
+- 1 个 uvicorn 进程可以承载大量空闲在线用户；真正需要控制的是同时生成回复的人数。
+- `BACKEND_LLM_CONCURRENCY` 不要盲目设到 1000，要按模型服务商 QPS、token 速率和服务器带宽来定。
+- 如果要开多个 worker，由于当前会话存在进程内存里，需要在 Nginx 做粘性会话，或者后续把会话迁到 Redis。
+- 生产环境建议加访问控制、限流和日志监控，否则公网用户可能消耗后端额度。
+
+多 worker 示例：
+
+```bash
+uvicorn app:app --host 127.0.0.1 --port 8000 --workers 4
+```
+
+多 worker 时 Nginx upstream 建议使用 `ip_hash`，确保同一用户的 `/api/chat/start` 和 `/api/chat/complete` 尽量落在同一个 worker：
+
+```nginx
+upstream qiming_backend {
+    ip_hash;
+    server 127.0.0.1:8000;
+}
+```
+
+如果后续要做真正的水平扩展，下一步应该把 `sessions` 从进程内存迁到 Redis。
+
+---
+
 ## 安全说明
 
 - 真实 `LLM_API_KEY` 只放在 `.env`，不要提交到 Git。
@@ -142,7 +189,9 @@ GET  /                  前端页面
 GET  /api/health        健康检查
 GET  /api/config        前端配置
 GET  /api/providers     模型 provider 预设
-POST /api/chat          后端代理对话
+POST /api/chat          后端代理对话（兼容旧调用）
+POST /api/chat/start    识别信息、查数据并返回动态过程步骤
+POST /api/chat/complete 调用后端模型生成回复
 POST /api/chat/prepare  BYOK 直连前的上下文准备
 POST /api/chat/finalize BYOK 回复落库与格式化
 POST /api/reset         重置会话

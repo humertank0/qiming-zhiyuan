@@ -96,6 +96,31 @@ Recommended production shape:
 - keep `WEB_ENABLE_BACKEND_LLM=true`;
 - keep `WEB_ENABLE_BYOK_DIRECT=false` unless intentionally exposing BYOK browser-direct mode.
 
+## Concurrency and capacity notes
+
+The product goal is multi-user server usage, with at least 1000 online users as the target direction.
+
+Current implementation details:
+
+- FastAPI chat endpoints are async.
+- Backend LLM calls use `AsyncOpenAI`.
+- `app.py` keeps in-process sessions with TTL and max-session eviction.
+- `ManagedSession.lock` serializes requests within the same session.
+- `llm_semaphore` caps concurrent upstream LLM calls per process via `BACKEND_LLM_CONCURRENCY`.
+
+Important constraints:
+
+- In-process sessions are not shared across uvicorn workers. If multiple workers are used, Nginx should use sticky routing such as `ip_hash`, or sessions should be moved to Redis in a future change.
+- Do not raise `BACKEND_LLM_CONCURRENCY` blindly; it must match upstream provider QPS/token limits.
+- For 1000 online users, optimize for many idle sessions and bounded simultaneous generations, not 1000 unbounded model calls.
+
+Relevant env vars:
+
+- `WEB_MAX_SESSIONS`
+- `WEB_SESSION_TTL_SECONDS`
+- `BACKEND_LLM_CONCURRENCY`
+- `MAX_HISTORY_MESSAGES`
+
 ## Security notes
 
 - Never commit `.env` or real API keys.

@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KNOWLEDGE_BASE_PATH = os.path.join(HERE, "knowledge_base.md")
@@ -149,6 +149,18 @@ def resolve_config(model_override: str | None = None, enable_search: bool | None
 
 
 CONFIG = resolve_config()
+_ASYNC_CLIENTS: dict[tuple[str, str], AsyncOpenAI] = {}
+
+
+def get_async_client(base_url: str, api_key: str) -> AsyncOpenAI:
+    """复用异步 HTTP client，减少高并发下反复建连的开销。"""
+    normalized = normalize_base_url(base_url)
+    key = (normalized, api_key)
+    client = _ASYNC_CLIENTS.get(key)
+    if client is None:
+        client = AsyncOpenAI(base_url=normalized, api_key=api_key)
+        _ASYNC_CLIENTS[key] = client
+    return client
 
 
 def load_file(path: str) -> str:
@@ -156,6 +168,10 @@ def load_file(path: str) -> str:
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
     return ""
+
+
+SHARED_KNOWLEDGE_BASE = load_file(KNOWLEDGE_BASE_PATH)
+SHARED_SYSTEM_PROMPT = load_file(SYSTEM_PROMPT_PATH)
 
 
 def ensure_admission_db() -> bool:
@@ -578,8 +594,8 @@ def needs_direction_guidance(msg: str) -> bool:
 class AdvisorSession:
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = dict(config or CONFIG)
-        self.knowledge_base = load_file(KNOWLEDGE_BASE_PATH)
-        self.system_prompt = load_file(SYSTEM_PROMPT_PATH)
+        self.knowledge_base = SHARED_KNOWLEDGE_BASE
+        self.system_prompt = SHARED_SYSTEM_PROMPT
         self.conversation: list[dict[str, str]] = []
         self.slots = new_slots()
         self.pending_turns: dict[str, dict[str, Any]] = {}
@@ -665,6 +681,38 @@ class AdvisorSession:
             data_summary += warning
         return search_hint, data_summary
 
+    def _public_query_context(self, user_msg: str) -> dict[str, Any]:
+        prov_match = re.findall(r"(北京|天津|上海|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|广西|海南|四川|贵州|云南|陕西|甘肃|青海|西藏|宁夏|新疆|内蒙古)", user_msg)
+        return {
+            "province": prov_match[0] if prov_match else self.slots.get("province", {}).get("value", "") or "未明确",
+            "score": extract_score(user_msg) or "未明确",
+            "rank": extract_rank(user_msg) or "未明确",
+            "major": extract_major_keyword(user_msg) or "未限定具体专业",
+            "school": self._find_school(user_msg) or "未指定学校",
+        }
+
+    def _public_data_items(self, data_summary: str | None, limit: int = 6) -> list[str]:
+        if not data_summary:
+            return []
+        items: list[str] = []
+        for line in data_summary.split("\n"):
+            line = line.strip()
+            if not line.startswith("· "):
+                continue
+            items.append(line[2:])
+            if len(items) >= limit:
+                break
+        return items
+
+    def _format_query_context_items(self, context: dict[str, Any]) -> list[str]:
+        return [
+            f"省份：{context['province']}",
+            f"分数：{context['score']}",
+            f"位次：{context['rank']}",
+            f"专业关键词：{context['major']}",
+            f"指定学校：{context['school']}",
+        ]
+
     def prepare_turn(self, user_msg: str) -> dict[str, Any]:
         if is_consultation_intent(user_msg):
             updates = extract_slots_from_message(user_msg, self.slots)
@@ -674,6 +722,7 @@ class AdvisorSession:
         messages: list[dict[str, str]] = [{"role": "system", "content": self._build_system_message()}]
         messages.extend(self.conversation)
         messages.append({"role": "user", "content": user_msg})
+        public_query_context = self._public_query_context(user_msg)
 
         if updates:
             hint = f"(系统自动识别到: {', '.join(updates)}。请在回复中确认并追问缺失信息。)"
@@ -695,10 +744,14 @@ class AdvisorSession:
                 search_results = "real_data_used"
 
         web_info = None
+        web_queries: list[str] = []
         if self.config["enable_search"] and should_search(user_msg):
             search_query = user_msg[:120]
-            web_results1 = web_search(search_query + " 录取 位次 site:gaokao.cn OR site:eol.cn", max_results=5)
-            web_results2 = web_search(search_query + " 分数线 教育考试院 OR 招生网", max_results=5)
+            query1 = search_query + " 录取 位次 site:gaokao.cn OR site:eol.cn"
+            query2 = search_query + " 分数线 教育考试院 OR 招生网"
+            web_queries = [query1, query2]
+            web_results1 = web_search(query1, max_results=5)
+            web_results2 = web_search(query2, max_results=5)
             all_web = (web_results1 or []) + (web_results2 or [])
             seen: set[str] = set()
             unique_web: list[str] = []
@@ -722,6 +775,7 @@ class AdvisorSession:
                 "title": "识别基础信息",
                 "status": "done",
                 "detail": "；".join(updates) if updates else "已读取你的问题，继续结合上下文判断。",
+                "items": self._format_query_context_items(public_query_context),
             }
         ]
         if data_summary:
@@ -730,30 +784,39 @@ class AdvisorSession:
                 "title": "查询本地录取数据库",
                 "status": "done",
                 "detail": f"已查询 admission_clean.db，命中 {len(data_lines)} 条附近参考数据。",
+                "items": self._public_data_items(data_summary),
             })
         else:
             progress_steps.append({
                 "title": "查询本地录取数据库",
                 "status": "done",
                 "detail": "本地库没有命中足够相关的数据，回答会提醒以官方数据核实。",
+                "items": [
+                    f"查询省份：{public_query_context['province']}",
+                    f"位次/分数：{public_query_context['rank']} / {public_query_context['score']}",
+                    f"专业关键词：{public_query_context['major']}",
+                ],
             })
         if web_info:
             progress_steps.append({
                 "title": "补充公开信息",
                 "status": "done",
                 "detail": "已尝试抓取公开网页信息，作为辅助参考。",
+                "items": web_queries,
             })
         elif self.config["enable_search"] and should_search(user_msg):
             progress_steps.append({
                 "title": "补充公开信息",
                 "status": "done",
                 "detail": "已尝试联网补充，但没有拿到足够稳定的信息。",
+                "items": web_queries,
             })
         else:
             progress_steps.append({
                 "title": "补充公开信息",
                 "status": "skipped",
                 "detail": "这轮优先使用本地知识库和录取数据，没有触发联网搜索。",
+                "items": ["未触发原因：问题不涉及明显的最新政策、分数线或学校评价关键词。"],
             })
         progress_steps.append({
             "title": "生成志愿建议",
@@ -813,6 +876,50 @@ class AdvisorSession:
         result["invalid_output_blocked"] = retry_count > 0 and "工具调用格式" in assistant_reply
         return result
 
+    async def complete_prepared_turn_async(self, turn_id: str) -> dict[str, Any]:
+        turn_context = self.pending_turns.get(turn_id)
+        if not turn_context:
+            raise ValueError("会话轮次不存在或已经完成，请重新发送。")
+        messages = turn_context.get("messages")
+        if not isinstance(messages, list):
+            raise ValueError("会话上下文不完整，请重新发送。")
+
+        retry_count = 0
+        working_messages = list(messages)
+        for attempt in range(3):
+            try:
+                assistant_reply = await self.complete_with_backend_async(working_messages)
+            except Exception as e:
+                assistant_reply = f"出错了：{e}\n请检查后端 .env 里的 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL 是否正确。"
+                break
+
+            if not is_invalid_model_output(assistant_reply):
+                break
+
+            retry_count += 1
+            if attempt >= 2:
+                assistant_reply = "这次模型返回了工具调用格式，我没有把那段内容直接展示给你。可以点下面的“重新生成”，我会再按自然中文回答重试一次。"
+                break
+            working_messages.append(retry_instruction("模型输出了工具调用/XML，而不是自然语言回答"))
+
+        result = self.finalize_turn(turn_id, assistant_reply)
+        result["turn_id"] = turn_id
+        result["retry_count"] = retry_count
+        result["invalid_output_blocked"] = retry_count > 0 and "工具调用格式" in assistant_reply
+        return result
+
+    async def complete_with_backend_async(self, messages: list[dict[str, str]]) -> str:
+        client = get_async_client(str(self.config["base_url"]), str(self.config["api_key"]))
+        kwargs: dict[str, Any] = {
+            "model": self.config["model"],
+            "messages": messages,
+            "temperature": self.config["temperature"],
+        }
+        if self.config["max_tokens"] is not None:
+            kwargs["max_tokens"] = self.config["max_tokens"]
+        resp = await client.chat.completions.create(**kwargs)
+        return extract_chat_content(resp)
+
     def complete_with_backend(self, messages: list[dict[str, str]]) -> str:
         client = OpenAI(base_url=normalize_base_url(str(self.config["base_url"])), api_key=self.config["api_key"])
         kwargs: dict[str, Any] = {
@@ -859,6 +966,13 @@ class AdvisorSession:
     def chat(self, user_msg: str) -> dict[str, Any]:
         prepared = self.prepare_turn(user_msg)
         result = self.complete_prepared_turn(prepared["turn_id"])
+        result["slot_updates"] = prepared.get("slot_updates", [])
+        result["progress_steps"] = prepared.get("progress_steps", [])
+        return result
+
+    async def chat_async(self, user_msg: str) -> dict[str, Any]:
+        prepared = self.prepare_turn(user_msg)
+        result = await self.complete_prepared_turn_async(prepared["turn_id"])
         result["slot_updates"] = prepared.get("slot_updates", [])
         result["progress_steps"] = prepared.get("progress_steps", [])
         return result

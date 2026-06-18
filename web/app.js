@@ -323,28 +323,44 @@ function addProcessMessage() {
   title.className = 'process-title';
   title.textContent = '正在处理你的问题';
 
+  const toggleButton = document.createElement('button');
+  toggleButton.type = 'button';
+  toggleButton.className = 'process-toggle-btn';
+  toggleButton.textContent = '收起过程';
+
+  const header = document.createElement('div');
+  header.className = 'process-header';
+  header.append(title, toggleButton);
+
   const list = document.createElement('div');
   list.className = 'process-list';
 
   const actions = document.createElement('div');
   actions.className = 'process-actions';
 
-  bubble.append(title, list, actions);
+  bubble.append(header, list, actions);
   wrapper.appendChild(bubble);
   els.messages.appendChild(wrapper);
   els.messages.scrollTop = els.messages.scrollHeight;
 
   let tick = 0;
   let baseTitle = '正在处理你的问题';
+  let latestSteps = [];
   const timer = window.setInterval(() => {
     if (wrapper.classList.contains('done') || wrapper.classList.contains('failed')) return;
     tick = (tick + 1) % 4;
     title.textContent = `${baseTitle}${'.'.repeat(tick)}`;
   }, 450);
 
+  toggleButton.addEventListener('click', () => {
+    wrapper.classList.toggle('collapsed');
+    toggleButton.textContent = wrapper.classList.contains('collapsed') ? '查看过程' : '收起过程';
+  });
+
   function setSteps(steps) {
+    latestSteps = Array.isArray(steps) ? steps : [];
     list.innerHTML = '';
-    (steps || []).forEach(step => {
+    latestSteps.forEach(step => {
       const item = document.createElement('div');
       item.className = `process-step ${step.status || 'running'}`;
       const dot = document.createElement('span');
@@ -355,6 +371,16 @@ function addProcessMessage() {
       const detail = document.createElement('small');
       detail.textContent = step.detail || '';
       content.append(stepTitle, detail);
+      if (Array.isArray(step.items) && step.items.length) {
+        const itemList = document.createElement('ul');
+        itemList.className = 'process-detail-list';
+        step.items.forEach(text => {
+          const li = document.createElement('li');
+          li.textContent = text;
+          itemList.appendChild(li);
+        });
+        content.appendChild(itemList);
+      }
       item.append(dot, content);
       list.appendChild(item);
     });
@@ -374,15 +400,22 @@ function addProcessMessage() {
       title.textContent = nextTitle;
     },
     finish(extraSteps) {
-      if (extraSteps) setSteps(extraSteps);
+      const finalSteps = (extraSteps || latestSteps).map(step => ({
+        ...step,
+        status: step.status === 'running' ? 'done' : step.status,
+      }));
+      setSteps(finalSteps);
       window.clearInterval(timer);
       title.textContent = '分析完成';
-      wrapper.classList.add('done');
+      wrapper.classList.add('done', 'collapsed');
+      toggleButton.textContent = '查看过程';
     },
     fail(message, onRetry) {
       window.clearInterval(timer);
       title.textContent = '这次生成没成功';
       wrapper.classList.add('failed');
+      wrapper.classList.remove('collapsed');
+      toggleButton.textContent = '收起过程';
       setSteps([{ title: '需要重试', status: 'error', detail: message }]);
       actions.innerHTML = '';
       if (typeof onRetry === 'function') {
