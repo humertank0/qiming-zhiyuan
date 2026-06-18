@@ -655,17 +655,30 @@ function showLocalExample(button) {
 }
 
 async function resetSession() {
+  const oldSessionId = state.sessionId;
+  state.sessionId = null;
+  localStorage.removeItem('qiming_session_id');
+  els.messageInput.value = '';
+
   try {
-    await fetch('/api/reset', {
+    const res = await fetch('/api/reset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: state.sessionId }),
+      body: JSON.stringify({ session_id: oldSessionId }),
     });
+    const data = await res.json();
+    if (res.ok && data.session_id) {
+      state.sessionId = data.session_id;
+      localStorage.setItem('qiming_session_id', state.sessionId);
+    }
   } catch (_) {
-    // 即便后端失败，也先清空前端显示，用户下一轮会自动新建/恢复会话。
+    // 如果后端暂时失败，也保留“本地无 session”的状态；下一次发送会自动新建会话。
+    state.sessionId = null;
+    localStorage.removeItem('qiming_session_id');
   }
+
   els.messages.innerHTML = '';
-  addMessage('assistant', '已重新开始。你可以重新告诉我省份、分数、位次、选科和目标。');
+  addMessage('assistant', '已重新开始。这是一个全新的会话，你可以重新告诉我省份、分数、位次、选科和目标。');
 }
 
 function bindEvents() {

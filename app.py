@@ -283,12 +283,17 @@ async def finalize_chat(req: FinalizeRequest):
 
 @app.post("/api/reset")
 async def reset(req: ResetRequest):
-    session_id, item = await get_session(req.session_id)
-    async with item.lock:
-        item.session.reset()
-    touch_session(session_id)
+    # 重新开始必须彻底废弃旧 session，而不是复用原 session reset。
+    # 这样即使旧请求仍在路上，也不会污染新会话。
+    async with sessions_lock:
+        if req.session_id:
+            sessions.pop(req.session_id, None)
+        cleanup_sessions()
+        new_id = str(uuid.uuid4())
+        item = ManagedSession(session=AdvisorSession(config=CONFIG), lock=asyncio.Lock(), updated_at=time.monotonic())
+        sessions[new_id] = item
     return {
-        "session_id": session_id,
+        "session_id": new_id,
         "slots": item.session.slots,
         "missing_slots": [k for k, v in item.session.slots.items() if not v["filled"]],
     }
