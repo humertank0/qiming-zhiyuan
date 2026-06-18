@@ -5,6 +5,8 @@ const state = {
   config: null,
   apiKeyMemory: '',
   device: 'desktop',
+  modeLayerOpen: false,
+  lastFocusedElement: null,
 };
 
 const fallbackProviders = [
@@ -115,6 +117,11 @@ const els = {
   testKeyButton: document.getElementById('testKeyButton'),
   testResult: document.getElementById('testResult'),
   quickPrompts: document.getElementById('quickPrompts'),
+  modeLayer: document.getElementById('modeLayer'),
+  modeLayerCard: document.querySelector('.mode-layer-card'),
+  modeEntryButton: document.getElementById('modeEntryButton'),
+  modeConfirmButton: document.getElementById('modeConfirmButton'),
+  modeLayerClose: document.getElementById('modeLayerClose'),
 };
 
 function detectDeviceFromUA() {
@@ -129,6 +136,106 @@ function applyDeviceMode() {
   document.documentElement.dataset.device = state.device;
   document.body.classList.toggle('device-mobile', state.device === 'mobile');
   document.body.classList.toggle('device-desktop', state.device === 'desktop');
+}
+
+function syncBodyModalOpen() {
+  const exampleModal = document.getElementById('exampleModal');
+  const exampleOpen = exampleModal && !exampleModal.classList.contains('hidden');
+  document.body.classList.toggle('modal-open', Boolean(state.modeLayerOpen || exampleOpen));
+}
+
+function syncModeEntry() {
+  if (!els.modeEntryButton) return;
+  const main = els.modeEntryButton.querySelector('.mode-entry-main');
+  const kicker = els.modeEntryButton.querySelector('.mode-entry-kicker');
+  const isByok = state.mode === 'byok';
+  els.modeEntryButton.classList.toggle('byok', isByok);
+  if (kicker) kicker.textContent = isByok ? '模型服务' : '推荐服务';
+  if (main) main.textContent = isByok ? '我的 Key' : '启明后端';
+  els.modeEntryButton.setAttribute('aria-label', isByok ? '当前使用自己的 Key，点击切换模型服务' : '当前使用启明后端，点击切换模型服务');
+}
+
+function syncModeConfirmButton() {
+  if (!els.modeConfirmButton) return;
+  els.modeConfirmButton.textContent = state.mode === 'byok' ? '保存并使用自己的 Key' : '使用启明后端';
+}
+
+function openModeLayer() {
+  if (!els.modeLayer) return;
+  state.lastFocusedElement = document.activeElement;
+  state.modeLayerOpen = true;
+  els.modeLayer.classList.remove('hidden', 'is-closing', 'closing-to-entry');
+  els.modeLayer.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('mode-layer-open');
+  syncBodyModalOpen();
+  window.requestAnimationFrame(() => {
+    els.modeLayer.classList.add('is-open');
+    const activeOption = state.mode === 'byok' ? els.byokModeLabel : els.backendModeLabel;
+    if (activeOption) activeOption.setAttribute('tabindex', '-1');
+    if (activeOption && typeof activeOption.focus === 'function') activeOption.focus({ preventScroll: true });
+  });
+}
+
+function closeModeLayer(options = {}) {
+  if (!els.modeLayer || els.modeLayer.classList.contains('hidden') || els.modeLayer.classList.contains('is-closing')) return;
+  const shrinkToEntry = options.shrinkToEntry !== false;
+  const card = els.modeLayerCard;
+  if (shrinkToEntry && card && els.modeEntryButton) {
+    const cardRect = card.getBoundingClientRect();
+    const targetRect = els.modeEntryButton.getBoundingClientRect();
+    const dx = (targetRect.left + targetRect.width / 2) - (cardRect.left + cardRect.width / 2);
+    const dy = (targetRect.top + targetRect.height / 2) - (cardRect.top + cardRect.height / 2);
+    const scale = Math.max(0.08, Math.min(targetRect.width / cardRect.width, targetRect.height / cardRect.height));
+    card.style.setProperty('--mode-exit-x', `${dx}px`);
+    card.style.setProperty('--mode-exit-y', `${dy}px`);
+    card.style.setProperty('--mode-exit-scale', `${scale}`);
+    els.modeLayer.classList.add('closing-to-entry');
+  }
+  els.modeLayer.classList.remove('is-open');
+  els.modeLayer.classList.add('is-closing');
+
+  const finish = () => {
+    els.modeLayer.classList.add('hidden');
+    els.modeLayer.classList.remove('is-closing', 'closing-to-entry');
+    els.modeLayer.setAttribute('aria-hidden', 'true');
+    if (card) {
+      card.style.removeProperty('--mode-exit-x');
+      card.style.removeProperty('--mode-exit-y');
+      card.style.removeProperty('--mode-exit-scale');
+    }
+    state.modeLayerOpen = false;
+    document.body.classList.remove('mode-layer-open');
+    syncBodyModalOpen();
+    if (els.modeEntryButton) els.modeEntryButton.focus({ preventScroll: true });
+  };
+
+  let finished = false;
+  const done = event => {
+    if (event && event.target !== card) return;
+    if (finished) return;
+    finished = true;
+    if (card) card.removeEventListener('animationend', done);
+    finish();
+  };
+  if (card) card.addEventListener('animationend', done);
+  window.setTimeout(done, 360);
+}
+
+function confirmModeChoice() {
+  const provider = currentProvider();
+  if (state.mode === 'byok') {
+    const key = els.apiKeyInput.value.trim();
+    if (provider && provider.requires_key !== false && !key) {
+      els.testResult.textContent = '请先填写 API Key，或者切换到启明后端。';
+      els.apiKeyInput.focus();
+      return;
+    }
+    if (provider) localStorage.setItem('qiming_provider', provider.id);
+    persistKeyIfNeeded(provider && provider.id ? provider.id : 'custom');
+  }
+  localStorage.setItem('qiming_mode', state.mode);
+  syncModeEntry();
+  closeModeLayer({ shrinkToEntry: true });
 }
 
 function renderRichText(target, text) {
@@ -175,6 +282,8 @@ function setMode(mode) {
   els.backendModeLabel.classList.toggle('active', mode === 'backend');
   els.byokModeLabel.classList.toggle('active', mode === 'byok');
   els.byokSettings.classList.toggle('hidden', mode !== 'byok');
+  syncModeEntry();
+  syncModeConfirmButton();
 }
 
 function currentProvider() {
@@ -260,7 +369,7 @@ async function callProviderDirect(messages, model, temperature) {
   persistKeyIfNeeded(provider.id);
 
   if (provider.requires_key !== false && !apiKey) {
-    throw new Error('请先填写 API Key，或者切换到“使用项目方后端”。');
+    throw new Error('请先填写 API Key，或者切换到“启明后端”。');
   }
 
   const url = normalizeChatCompletionsUrl(els.baseUrlInput.value);
@@ -547,6 +656,7 @@ function getExampleModal() {
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
   modal.setAttribute('aria-labelledby', 'exampleModalTitle');
+  modal.setAttribute('aria-hidden', 'true');
   modal.innerHTML = `
     <div class="example-modal-backdrop" data-close-example="true"></div>
     <section class="example-modal-card">
@@ -603,12 +713,44 @@ function renderExampleAnswer(answer) {
   return wrapper;
 }
 
-function closeExampleModal() {
+function openExampleModal(modal) {
+  modal.classList.remove('hidden', 'is-closing');
+  modal.style.display = 'grid';
+  modal.setAttribute('aria-hidden', 'false');
+  syncBodyModalOpen();
+  window.requestAnimationFrame(() => {
+    modal.classList.add('is-open');
+    const closeButton = modal.querySelector('.example-close-btn');
+    if (closeButton) closeButton.focus({ preventScroll: true });
+  });
+}
+
+function closeExampleModal(afterClose) {
   const modal = document.getElementById('exampleModal');
-  if (!modal) return;
-  modal.classList.add('hidden');
-  modal.style.display = 'none';
-  document.body.classList.remove('modal-open');
+  if (!modal || modal.classList.contains('hidden') || modal.classList.contains('is-closing')) return;
+  const card = modal.querySelector('.example-modal-card');
+  modal.classList.remove('is-open');
+  modal.classList.add('is-closing');
+
+  const finish = () => {
+    modal.classList.add('hidden');
+    modal.classList.remove('is-closing');
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    syncBodyModalOpen();
+    if (typeof afterClose === 'function') afterClose();
+  };
+
+  let finished = false;
+  const done = event => {
+    if (event && event.target !== card) return;
+    if (finished) return;
+    finished = true;
+    if (card) card.removeEventListener('animationend', done);
+    finish();
+  };
+  if (card) card.addEventListener('animationend', done);
+  window.setTimeout(done, 300);
 }
 
 function showLocalExample(button) {
@@ -644,14 +786,13 @@ function showLocalExample(button) {
   const fillButton = modal.querySelector('.example-primary-btn');
   fillButton.onclick = () => {
     els.messageInput.value = prompt;
-    closeExampleModal();
-    scrollToChat();
-    els.messageInput.focus();
+    closeExampleModal(() => {
+      scrollToChat();
+      els.messageInput.focus();
+    });
   };
 
-  modal.classList.remove('hidden');
-  modal.style.display = 'grid';
-  document.body.classList.add('modal-open');
+  openExampleModal(modal);
 }
 
 async function resetSession() {
@@ -708,6 +849,40 @@ function bindEvents() {
 
   if (els.testKeyButton) els.testKeyButton.addEventListener('click', testConnection);
 
+  if (els.modeEntryButton) {
+    els.modeEntryButton.addEventListener('click', () => openModeLayer({ fromEntry: true }));
+  }
+
+  if (els.modeConfirmButton) {
+    els.modeConfirmButton.addEventListener('click', confirmModeChoice);
+  }
+
+  if (els.modeLayerClose) {
+    els.modeLayerClose.addEventListener('click', () => closeModeLayer({ shrinkToEntry: true }));
+  }
+
+  if (els.modeLayer) {
+    els.modeLayer.addEventListener('click', event => {
+      const closeTarget = event.target.closest('[data-close-mode]');
+      if (!closeTarget) return;
+      if (closeTarget.classList.contains('secondary-btn')) {
+        confirmModeChoice();
+        return;
+      }
+      closeModeLayer({ shrinkToEntry: true });
+    });
+  }
+
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const exampleModal = document.getElementById('exampleModal');
+    const exampleOpen = exampleModal && !exampleModal.classList.contains('hidden');
+    if (exampleOpen) return;
+    if (els.modeLayer && !els.modeLayer.classList.contains('hidden')) {
+      closeModeLayer({ shrinkToEntry: true });
+    }
+  });
+
   document.querySelectorAll('button[data-example-key]').forEach(button => {
     button.addEventListener('click', event => {
       event.preventDefault();
@@ -735,9 +910,10 @@ function bindEvents() {
 async function init() {
   applyDeviceMode();
   await loadWebConfig();
+  await loadProviders();
   bindEvents();
   setMode(state.mode === 'byok' ? 'byok' : 'backend');
-  await loadProviders();
+  openModeLayer({ initial: true });
 }
 
 init();

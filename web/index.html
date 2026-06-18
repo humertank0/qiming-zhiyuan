@@ -4,9 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>启明志愿</title>
-  <link rel="stylesheet" href="/web/styles.css?v=20260618-progress-toggle-fix" />
+  <link rel="stylesheet" href="/web/styles.css?v=20260618-mode-layer" />
 </head>
 <body>
+  <button type="button" class="mode-entry-button" id="modeEntryButton" aria-haspopup="dialog" aria-controls="modeLayer">
+    <span class="mode-entry-kicker">模型服务</span>
+    <span class="mode-entry-main">启明后端</span>
+  </button>
   <main class="page-shell">
     <section class="hero-panel">
       <div class="hero-copy-block">
@@ -44,57 +48,66 @@
       </div>
     </section>
 
-    <section class="control-panel" aria-label="模型调用方式">
-      <div class="panel-heading">
-        <div>
-          <h2>选择模型调用方式</h2>
-          <p>想省事就用项目方后端；想节省项目方额度，也可以用自己的 Key。</p>
+    <section class="control-panel mode-layer hidden" id="modeLayer" role="dialog" aria-modal="true" aria-labelledby="modeLayerTitle" aria-describedby="modeLayerDesc" aria-hidden="true">
+      <div class="mode-layer-backdrop" data-close-mode="true"></div>
+      <div class="mode-layer-card">
+        <button type="button" class="mode-layer-close" id="modeLayerClose" aria-label="关闭模型服务选择">×</button>
+        <div class="panel-heading">
+          <div>
+            <h2 id="modeLayerTitle">选择模型服务</h2>
+            <p id="modeLayerDesc">推荐先用启明后端：纯公益，为爱发电，无需填写 Key；如果你想使用自己的额度，也可以切换为自己的 Key。</p>
+          </div>
         </div>
-      </div>
 
-      <div class="mode-tabs">
-        <label class="mode-option active" id="backendModeLabel">
-          <input type="radio" name="mode" value="backend" checked />
-          <span>项目方后端</span>
-          <small>无需填写 Key，适合快速体验</small>
-        </label>
-        <label class="mode-option" id="byokModeLabel">
-          <input type="radio" name="mode" value="byok" />
-          <span>我自己的 Key</span>
-          <small>Key 不发到启明志愿后端</small>
-        </label>
-      </div>
+        <div class="mode-tabs">
+          <label class="mode-option active" id="backendModeLabel">
+            <input type="radio" name="mode" value="backend" checked />
+            <span class="mode-option-title">启明后端 <em class="mode-badge">推荐</em></span>
+            <small>无需填写 Key，纯公益，为爱发电，适合快速体验</small>
+          </label>
+          <label class="mode-option" id="byokModeLabel">
+            <input type="radio" name="mode" value="byok" />
+            <span class="mode-option-title">我自己的 Key</span>
+            <small>Key 不发到启明志愿后端，使用你自己的模型额度</small>
+          </label>
+        </div>
 
-      <div class="byok-settings hidden" id="byokSettings">
-        <div class="settings-grid">
-          <label>
-            <span>提供商</span>
-            <select id="providerSelect"></select>
+        <div class="byok-settings hidden" id="byokSettings">
+          <div class="settings-grid">
+            <label>
+              <span>提供商</span>
+              <select id="providerSelect"></select>
+            </label>
+            <label>
+              <span>模型名</span>
+              <input id="modelInput" autocomplete="off" placeholder="deepseek-chat" />
+            </label>
+            <label class="wide-field">
+              <span>Base URL</span>
+              <input id="baseUrlInput" autocomplete="off" placeholder="https://api.example.com/v1" />
+            </label>
+            <label class="wide-field">
+              <span>API Key</span>
+              <input id="apiKeyInput" type="password" autocomplete="off" placeholder="默认只保存在当前浏览器会话里" />
+            </label>
+          </div>
+          <label class="remember-row">
+            <input id="rememberKeyInput" type="checkbox" />
+            <span>记住在本设备上（共享电脑不建议）</span>
           </label>
-          <label>
-            <span>模型名</span>
-            <input id="modelInput" autocomplete="off" placeholder="deepseek-chat" />
-          </label>
-          <label class="wide-field">
-            <span>Base URL</span>
-            <input id="baseUrlInput" autocomplete="off" placeholder="https://api.example.com/v1" />
-          </label>
-          <label class="wide-field">
-            <span>API Key</span>
-            <input id="apiKeyInput" type="password" autocomplete="off" placeholder="默认只保存在当前浏览器会话里" />
-          </label>
+          <div class="settings-actions">
+            <button type="button" id="testKeyButton" class="secondary-btn">测试连接</button>
+            <span id="testResult" class="test-result"></span>
+          </div>
+          <p class="security-note">
+            自带 Key 模式下，请求会从你的浏览器直接发往所选服务商。启明志愿后端不保存、不接触你的 Key；但浏览器扩展、共享电脑、XSS 或服务商 CORS 策略仍可能带来风险。
+          </p>
         </div>
-        <label class="remember-row">
-          <input id="rememberKeyInput" type="checkbox" />
-          <span>记住在本设备上（共享电脑不建议）</span>
-        </label>
-        <div class="settings-actions">
-          <button type="button" id="testKeyButton" class="secondary-btn">测试连接</button>
-          <span id="testResult" class="test-result"></span>
+
+        <div class="mode-layer-footer">
+          <button type="button" class="secondary-btn" data-close-mode="true">先用当前选择</button>
+          <button type="button" class="primary-btn" id="modeConfirmButton">使用启明后端</button>
         </div>
-        <p class="security-note">
-          自带 Key 模式下，请求会从你的浏览器直接发往所选服务商。启明志愿后端不保存、不接触你的 Key；但浏览器扩展、共享电脑、XSS 或服务商 CORS 策略仍可能带来风险。
-        </p>
       </div>
     </section>
 
@@ -212,6 +225,6 @@
     </footer>
   </main>
 
-  <script src="/web/app.js?v=20260618-reset-isolation"></script>
+  <script src="/web/app.js?v=20260618-mode-layer"></script>
 </body>
 </html>

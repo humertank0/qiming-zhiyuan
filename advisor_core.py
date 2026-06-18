@@ -211,6 +211,8 @@ def extract_rank(msg: str) -> int | None:
 
 
 def extract_major_keyword(user_msg: str) -> str | None:
+    if any(word in user_msg for word in ["国家电网", "电网", "电力系统", "电力行业"]):
+        return "电气"
     subject_only_words = {"物理", "历史", "化学", "生物", "数学", "地理"}
     for kw in MAJOR_KEYWORDS:
         if kw not in user_msg:
@@ -257,6 +259,14 @@ def query_real_data(
         conditions.append("(school LIKE '%大学%' OR school LIKE '%学院%' OR school LIKE '%学校%' OR school LIKE '%职业%' OR school LIKE '%专科%')")
         conditions.append("length(school) <= 40")
         conditions.append("score IS NOT NULL AND score > 0")
+        # 高职单招、对口招生、艺体类等分数体系和普通高考不可直接比较，不能混入常规志愿参考。
+        for pattern in ["%单招%", "%对口%", "%艺术%", "%体育%", "%中职%", "%职教%", "%技能%", "%专升本%"]:
+            conditions.append("(source IS NULL OR source NOT LIKE ?)")
+            params.append(pattern)
+        # 高分段普通本科咨询里，专科/高职院校通常是脏数据或不可比数据；指定学校查询时不强行过滤。
+        if score and score >= 580 and not school_keyword:
+            conditions.append("school NOT LIKE '%职业%'")
+            conditions.append("school NOT LIKE '%专科%'")
         if score:
             conditions.append("score >= ? AND score <= ?")
             params.extend([max(1, score - 45), score + 35])
@@ -647,6 +657,11 @@ class AdvisorSession:
         if not (prov or school):
             return None, None
 
+        # 只有存在强约束时才查询并暴露录取条目：具体学校、专业/职业目标映射，或明确位次。
+        # 只有省份+分数时，直接列相近分数表容易混入无关专业/批次，反而误导用户。
+        if not (school or major_kw or rank):
+            return None, None
+
         real_data = query_real_data(prov, school, major_kw, rank, score=score, limit=30)
         if not real_data and school:
             real_data = query_real_data(school_keyword=school, major_keyword=major_kw, max_rank=rank, score=score, limit=30)
@@ -783,18 +798,24 @@ class AdvisorSession:
             progress_steps.append({
                 "title": "查询本地录取数据库",
                 "status": "done",
-                "detail": f"已查询 admission_clean.db，命中 {len(data_lines)} 条附近参考数据。",
+                "detail": f"已查询 admission_clean.db，命中 {len(data_lines)} 条强相关参考数据。",
                 "items": self._public_data_items(data_summary),
             })
         else:
+            has_anchor = any([
+                public_query_context["rank"] != "未明确",
+                public_query_context["major"] != "未限定具体专业",
+                public_query_context["school"] != "未指定学校",
+            ])
             progress_steps.append({
                 "title": "查询本地录取数据库",
                 "status": "done",
-                "detail": "本地库没有命中足够相关的数据，回答会提醒以官方数据核实。",
+                "detail": "本地库没有命中足够相关的数据，回答会提醒以官方数据核实。" if has_anchor else "已跳过具体院校条目展示：缺少位次、专业/职业方向或指定学校，避免把无关表格当参考。",
                 "items": [
                     f"查询省份：{public_query_context['province']}",
                     f"位次/分数：{public_query_context['rank']} / {public_query_context['score']}",
                     f"专业关键词：{public_query_context['major']}",
+                    "展示规则：只公开强相关院校/专业条目，不展示仅按分数扫出的无关表格。",
                 ],
             })
         if web_info:
