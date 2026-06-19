@@ -722,6 +722,62 @@ body.device-mobile .brand-mark::after { content: "手机端"; }
 body.device-desktop .chat-card { border-radius: 30px; }
 body.device-desktop .messages { background: linear-gradient(180deg, rgba(248, 251, 255, 0.72), rgba(255, 255, 255, 0.92)); }
 
+.creator-card {
+  margin-top: 20px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+.creator-avatar {
+  width: 76px;
+  height: 76px;
+  flex: 0 0 auto;
+  border-radius: 24px;
+  object-fit: cover;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+.creator-copy { min-width: 0; }
+.creator-kicker {
+  color: #3158f5;
+  font-size: 13px;
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+.creator-card h2 {
+  margin: 0 0 7px;
+  color: #0f172a;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.creator-card p {
+  margin: 0;
+  max-width: 680px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.creator-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  margin-top: 12px;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #111827;
+  color: #fff;
+  font-weight: 900;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.16);
+}
+.creator-link:hover { background: #1f2937; }
+
 footer { max-width: 720px; margin: 18px auto 0; color: var(--muted); font-size: 12px; line-height: 1.65; text-align: center; }
 
 @media (max-width: 920px) {
@@ -737,6 +793,9 @@ footer { max-width: 720px; margin: 18px auto 0; color: var(--muted); font-size: 
   .lead { font-size: 15px; line-height: 1.75; }
   .mode-tabs, .settings-grid, .case-grid { grid-template-columns: 1fr; }
   .panel-heading, .chat-heading { flex-direction: column; align-items: stretch; }
+  .creator-card { align-items: flex-start; padding: 18px; border-radius: 24px; }
+  .creator-avatar { width: 62px; height: 62px; border-radius: 20px; }
+  .creator-card h2 { font-size: 20px; }
   .case-card { min-height: auto; }
   .messages { min-height: 390px; max-height: 58vh; padding: 16px 14px; }
   .bubble { max-width: 94%; font-size: 15px; }
@@ -766,6 +825,15 @@ body.device-mobile .settings-grid,
 body.device-mobile .case-grid { grid-template-columns: 1fr; }
 body.device-mobile .control-panel,
 body.device-mobile .cases-section { padding: 16px; }
+body.device-mobile .creator-card {
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px;
+  border-radius: 22px;
+  box-shadow: 0 16px 44px rgba(25, 38, 78, 0.12);
+}
+body.device-mobile .creator-avatar { width: 64px; height: 64px; border-radius: 20px; }
+body.device-mobile .creator-link { width: 100%; }
 body.device-mobile .panel-heading,
 body.device-mobile .chat-heading { flex-direction: column; align-items: stretch; }
 body.device-mobile .case-card { min-height: auto; padding: 16px; }
