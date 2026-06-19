@@ -7,6 +7,7 @@ const state = {
   device: 'desktop',
   modeLayerOpen: false,
   lastFocusedElement: null,
+  maxMessageChars: 1200,
 };
 
 const fallbackProviders = [
@@ -309,6 +310,10 @@ async function loadWebConfig() {
     state.config = { backend_llm_enabled: true, byok_direct_enabled: false };
   }
 
+  if (Number.isFinite(Number(state.config.max_message_chars))) {
+    state.maxMessageChars = Number(state.config.max_message_chars);
+  }
+
   const byokEnabled = state.config.byok_direct_enabled !== false;
   els.byokModeLabel.classList.toggle('hidden', !byokEnabled);
   if (!byokEnabled && state.mode === 'byok') {
@@ -363,7 +368,7 @@ function persistKeyIfNeeded(providerId) {
   }
 }
 
-async function callProviderDirect(messages, model, temperature) {
+async function callProviderDirect(messages, model, temperature, maxTokens) {
   const provider = currentProvider();
   const apiKey = els.apiKeyInput.value.trim();
   persistKeyIfNeeded(provider.id);
@@ -379,6 +384,9 @@ async function callProviderDirect(messages, model, temperature) {
     temperature: typeof temperature === 'number' ? temperature : 0.7,
   };
   if (!body.model) throw new Error('请填写模型名。');
+  if (Number.isFinite(Number(maxTokens)) && Number(maxTokens) > 0) {
+    body.max_tokens = Number(maxTokens);
+  }
 
   let res;
   try {
@@ -419,7 +427,7 @@ async function testConnection() {
 }
 
 function looksLikeInvalidOutput(text) {
-  return /<\s*\/?\s*tool_call\b|<\s*function\s*=|<\s*parameter\s*=|<\s*\/\s*function\s*>/i.test(String(text || ''));
+  return /<\s*\/?\s*tool_call\b|<\s*function\s*=|<\s*parameter\s*=|<\s*\/\s*function\s*>|^\s*\{\s*"tool/i.test(String(text || ''));
 }
 
 function addProcessMessage() {
@@ -588,8 +596,14 @@ async function sendByok(message) {
 
   state.sessionId = prepared.session_id;
   localStorage.setItem('qiming_session_id', state.sessionId);
+  if (prepared.safety_blocked && prepared.blocked_reply) {
+    return prepared.blocked_reply;
+  }
 
-  const assistantReply = await callProviderDirect(prepared.messages, els.modelInput.value || prepared.model_suggestion, prepared.temperature);
+  const assistantReply = await callProviderDirect(prepared.messages, els.modelInput.value || prepared.model_suggestion, prepared.temperature, prepared.max_output_tokens || state.config.max_output_tokens);
+  if (looksLikeInvalidOutput(assistantReply)) {
+    throw new Error('模型输出了工具调用或异常格式，没有直接展示。请重试，或切换启明后端模式。');
+  }
 
   const finalizeRes = await fetch('/api/chat/finalize', {
     method: 'POST',
@@ -598,8 +612,10 @@ async function sendByok(message) {
   });
   const finalized = await finalizeRes.json();
   if (!finalizeRes.ok) {
-    addMessage('assistant', assistantReply);
-    throw new Error(finalized.detail || '回复已生成，但保存会话失败。');
+    throw new Error(finalized.detail || '回复已生成，但未通过后端保存或安全检查，因此没有直接展示。请重试，或切换启明后端模式。');
+  }
+  if (looksLikeInvalidOutput(finalized.reply)) {
+    throw new Error('模型输出了工具调用或异常格式，没有直接展示。请重试，或切换启明后端模式。');
   }
   return finalized.reply;
 }
@@ -607,6 +623,10 @@ async function sendByok(message) {
 async function sendMessage(text, options = {}) {
   const message = text.trim();
   if (!message) return;
+  if (message.length > state.maxMessageChars) {
+    addMessage('assistant', `这次输入有点长，请控制在 ${state.maxMessageChars} 字以内，再分段发送。`, 'error');
+    return;
+  }
   const showUser = options.showUser !== false;
   if (showUser) addMessage('user', message);
   els.messageInput.value = '';

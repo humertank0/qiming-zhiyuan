@@ -44,6 +44,10 @@ WEB_ENABLE_BYOK_DIRECT=false
 WEB_MAX_SESSIONS=3000
 WEB_SESSION_TTL_SECONDS=7200
 BACKEND_LLM_CONCURRENCY=80
+LLM_REQUEST_TIMEOUT_SECONDS=45
+LLM_MAX_TOKENS=1200
+MAX_MESSAGE_CHARS=1200
+WEB_RATE_LIMIT_ENABLED=true
 ```
 
 启动：
@@ -135,6 +139,7 @@ WEB_CORS_ORIGINS=https://your-domain.example
 - 内存会话带 TTL 和最大容量，避免长期运行时会话无限增长。
 - 同一会话内用锁串行处理，避免用户连续点击导致上下文错乱。
 - 全局模型并发用信号量限制，避免 1000 人同时在线时把上游模型服务打爆。
+- 应用内提供轻量 IP/session 限流、输入长度限制和模型超时保护，适合单进程公益项目先上线。
 
 关键环境变量：
 
@@ -142,6 +147,10 @@ WEB_CORS_ORIGINS=https://your-domain.example
 WEB_MAX_SESSIONS=3000          # 单个进程最多保留多少个会话
 WEB_SESSION_TTL_SECONDS=7200   # 会话多久未使用后过期
 BACKEND_LLM_CONCURRENCY=80     # 单个进程同时调用上游模型的最大请求数
+LLM_REQUEST_TIMEOUT_SECONDS=45 # 单次模型生成超时时间
+LLM_MAX_TOKENS=1200            # 单次模型回答最大输出 token
+MAX_MESSAGE_CHARS=1200         # 用户单次输入最大字符数
+WEB_CHAT_RATE_LIMIT_PER_MINUTE=6
 MAX_HISTORY_MESSAGES=20        # 每个会话保留的历史消息数
 ```
 
@@ -171,6 +180,27 @@ upstream qiming_backend {
 
 ---
 
+## 搜索和数据相关性
+
+- 本地录取库只在存在强约束时展示具体条目：明确位次、具体学校、具体专业/职业方向之一。
+- 高职单招、对口、艺体、中职、职教、专升本等不可比数据会被过滤。
+- 联网搜索只作为辅助核验：搜索引擎用于发现候选网页，进入模型前还会按可信域名和问题相关性评分。
+- 优先使用考试院、教育部/阳光高考、高校招生网等官方来源；低相关网页不会展示，也不会作为确定依据。
+- 找不到强相关公开来源时，系统会明确说明未核验到足够数据，不能编造分数、位次或招生计划。
+
+关键搜索配置：
+
+```env
+SEARCH_TRUSTED_DOMAINS=moe.gov.cn,chsi.com.cn,gaokao.chsi.com.cn,edu.cn,gov.cn,eol.cn,gaokao.cn
+SEARCH_MIN_RELEVANCE=6
+SEARCH_MAX_RESULTS=5
+SEARCH_MAX_QUERIES=4
+SEARCH_TIMEOUT_SECONDS=5
+SEARCH_MAX_PAGE_BYTES=300000
+```
+
+---
+
 ## 安全说明
 
 - 真实 `LLM_API_KEY` 只放在 `.env`，不要提交到 Git。
@@ -179,6 +209,9 @@ upstream qiming_backend {
 - 如果通过公网开放服务，别人可能消耗你的后端额度；后续建议增加访问控制、验证码或登录。
 - HTTP 明文访问会暴露用户提问和回答内容，生产环境应使用 HTTPS。
 - BYOK 浏览器直连模式会让用户 Key 出现在自己的浏览器环境中，默认建议关闭。
+- 违法、危险、隐私侵犯、索要系统提示/密钥、诱导访问内网或本地文件的请求会被拒绝。
+- BYOK 回复必须经过 `/api/chat/finalize` 的后端格式化和安全检查；如果保存/检查失败，前端不会直接展示原始模型回复。
+- 当前限流是进程内内存实现，适合单机单进程；如果开启多 worker、多机器，建议迁移到 Redis 限流和 Redis session。
 
 ---
 
